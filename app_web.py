@@ -30,10 +30,11 @@ with st.sidebar:
 st.title("Gestão de Inventário de Rede")
 
 # Definição dos Separadores baseados no teu main.py
-tab_gestao, tab_consultas, tab_trafego = st.tabs([
+tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs([
     "Gestão", 
     "Consultas", 
-    "Tráfego e Políticas"
+    "Tráfego e Políticas",
+    "Ligações"
 ])
 
 # --- 1. TAB GESTÃO (Adicionar, Remover, Listar) ---
@@ -183,30 +184,30 @@ with tab_trafego:
             else:
                 st.success("Nenhum dispositivo excede o limite atual.")
 
-# --- 4. TAB LIGAÇÕES (Ligar dispositivos a Routers/Switches) ---
-with st.tabs(["Ligações"])[0]: # Podes adicionar ao final da lista de st.tabs
+# --- 4. TAB LIGAÇÕES ---
+with tab_ligacoes:
     st.subheader("Gerir Ligações de Rede")
     
-    # Filtramos quem pode "receber" ligações (Routers e Switches)
+    # Filtra dispositivos que podem receber ligações (Router/Switch)
     hosts = [d for d in inv.list_devices() if d.device_type in ["ROUTER", "SWITCH"]]
     
     if not hosts:
-        st.info("Adicione um Router ou Switch para criar ligações.")
+        st.info("Adicione um Router ou Switch na aba de Gestão para criar ligações.")
     else:
         col_con, col_view = st.columns(2)
         
         with col_con:
             st.markdown("### Criar Nova Ligação")
-            host_name = st.selectbox("Selecionar Anfitrião (Router/Switch)", [h.name for h in hosts])
+            host_name = st.selectbox("Selecionar Anfitrião", [h.name for h in hosts])
             
-            # Lista de todos os outros dispositivos para ligar
+            # Lista outros dispositivos para ligar
             others = [d.name for d in inv.list_devices() if d.name != host_name]
             target_name = st.selectbox("Dispositivo a Ligar", others)
             
             if st.button("Estabelecer Ligação"):
-                host_obj = inv.devices.get(host_name)
+                host_obj = inv.devices.get(host_name) # Obtém o objeto do inventário
                 try:
-                    # Chama o método que já tens definido no devices.py
+                    # Utiliza o método de ligação da classe
                     host_obj.connect_device(target_name)
                     st.success(f"'{target_name}' ligado a '{host_name}'!")
                     st.rerun()
@@ -218,6 +219,7 @@ with st.tabs(["Ligações"])[0]: # Podes adicionar ao final da lista de st.tabs
             selected_host = st.selectbox("Ver ligações de:", [h.name for h in hosts], key="view_con")
             h_obj = inv.devices.get(selected_host)
             
+            # Acede à lista de dispositivos ligados
             connections = getattr(h_obj, "connected_devices", [])
             if not connections:
                 st.write("Nenhum dispositivo ligado.")
@@ -226,5 +228,5 @@ with st.tabs(["Ligações"])[0]: # Podes adicionar ao final da lista de st.tabs
                     c1, c2 = st.columns([3, 1])
                     c1.text(f"🔗 {con}")
                     if c2.button("Desligar", key=f"dis_{selected_host}_{con}"):
-                        h_obj.disconnect_device(con)
+                        h_obj.disconnect_device(con) # Remove a ligação
                         st.rerun()
