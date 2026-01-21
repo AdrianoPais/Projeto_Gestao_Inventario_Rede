@@ -1,5 +1,7 @@
 # Projeto de Gestão de Inventário de Rede
 
+## Link para o site: https://projetogestaoinventariorede.streamlit.app/
+
 Este projeto é uma aplicação robusta desenvolvida em Python para a gestão centralizada de ativos de rede. Permite o registo, monitorização de tráfego e gestão de conectividade de diversos tipos de dispositivos através de uma interface moderna construída com Streamlit.
 ## Funcionalidades Principais
 
