@@ -100,15 +100,15 @@ with tab_gestao:
                         inv.remove_device(d.name)
                         st.rerun()
 
-# --- 2. TAB CONSULTAS (Pesquisa por IP, Tipo, Estado) ---
+# --- 2. TAB CONSULTAS ---
 with tab_consultas:
     st.subheader("Ferramentas de Pesquisa")
     
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4) 
     
     with c1:
         st.markdown("**Por IPv4**")
-        search_ip = st.text_input("Introduzir IP")
+        search_ip = st.text_input("Introduzir IP", key="search_ip_input")
         if st.button("Pesquisar IP"):
             res = inv.find_by_ipv4(search_ip)
             if res: st.write(res)
@@ -123,10 +123,28 @@ with tab_consultas:
 
     with c3:
         st.markdown("**Por Estado**")
-        search_s = st.selectbox("Estado", ["ACTIVE", "INACTIVE"])
+        search_s = st.selectbox("Estado", ["ACTIVE", "INACTIVE"], key="sstatus")
         if st.button("Listar por Estado"):
             results = inv.find_by_status(search_s)
             for r in results: st.write(r)
+                
+    with c4:
+        st.markdown("**Conectividade**")
+        st.write("Filtrar anfitriões com dispositivos ligados.")
+        if st.button("Listar CONNECTED"):
+            results = [
+                d for d in inv.list_devices() 
+                if len(getattr(d, "connected_devices", [])) > 0 or 
+                   len(getattr(d, "connected_endpoints", [])) > 0
+            ]
+            
+            if not results:
+                st.info("Nenhum anfitrião tem dispositivos ligados.")
+            else:
+                for r in results:
+                    num_con = len(getattr(r, "connected_devices", [])) or len(getattr(r, "connected_endpoints", []))
+                    st.write(f"✅ **{r.name}** ({r.device_type})")
+                    st.caption(f"Ligações ativas: {num_con}")
 
 # --- 3. TAB TRÁFEGO (Atualizar, Top Consumidores, Políticas) ---
 with tab_trafego:
