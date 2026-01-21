@@ -47,7 +47,7 @@ O sistema foi desenhado seguindo os princípios da Programação Orientada a Obj
 
     streamlit run app_web.py
 
-Deploy
+## Deploy
 
 A aplicação está configurada para deploy imediato no Streamlit Community Cloud, utilizando o ficheiro requirements.txt para a gestão automática de dependências.
 
