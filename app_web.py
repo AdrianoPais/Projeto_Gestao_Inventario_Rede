@@ -182,3 +182,49 @@ with tab_trafego:
                     st.write(f"- {a.name} (Até: {a.suspended_until})")
             else:
                 st.success("Nenhum dispositivo excede o limite atual.")
+
+# --- 4. TAB LIGAÇÕES (Ligar dispositivos a Routers/Switches) ---
+with st.tabs(["Ligações"])[0]: # Podes adicionar ao final da lista de st.tabs
+    st.subheader("Gerir Ligações de Rede")
+    
+    # Filtramos quem pode "receber" ligações (Routers e Switches)
+    hosts = [d for d in inv.list_devices() if d.device_type in ["ROUTER", "SWITCH"]]
+    
+    if not hosts:
+        st.info("Adicione um Router ou Switch para criar ligações.")
+    else:
+        col_con, col_view = st.columns(2)
+        
+        with col_con:
+            st.markdown("### Criar Nova Ligação")
+            host_name = st.selectbox("Selecionar Anfitrião (Router/Switch)", [h.name for h in hosts])
+            
+            # Lista de todos os outros dispositivos para ligar
+            others = [d.name for d in inv.list_devices() if d.name != host_name]
+            target_name = st.selectbox("Dispositivo a Ligar", others)
+            
+            if st.button("Estabelecer Ligação"):
+                host_obj = inv.devices.get(host_name)
+                try:
+                    # Chama o método que já tens definido no devices.py
+                    host_obj.connect_device(target_name)
+                    st.success(f"'{target_name}' ligado a '{host_name}'!")
+                    st.rerun()
+                except ValueError as e:
+                    st.error(f"Erro: {e}")
+
+        with col_view:
+            st.markdown("### Ligações Atuais")
+            selected_host = st.selectbox("Ver ligações de:", [h.name for h in hosts], key="view_con")
+            h_obj = inv.devices.get(selected_host)
+            
+            connections = getattr(h_obj, "connected_devices", [])
+            if not connections:
+                st.write("Nenhum dispositivo ligado.")
+            else:
+                for con in connections:
+                    c1, c2 = st.columns([3, 1])
+                    c1.text(f"🔗 {con}")
+                    if c2.button("Desligar", key=f"dis_{selected_host}_{con}"):
+                        h_obj.disconnect_device(con)
+                        st.rerun()
