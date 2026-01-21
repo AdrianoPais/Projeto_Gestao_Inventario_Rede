@@ -51,4 +51,4 @@ O sistema foi desenhado seguindo os princípios da Programação Orientada a Obj
 
 A aplicação está configurada para deploy imediato no Streamlit Community Cloud, utilizando o ficheiro requirements.txt para a gestão automática de dependências.
 
-Autores: Daniel Santos, Sérgio Correia e Tiago Costa. Curso: GRSC0925 - UC00608 Programação Alocada a Objetos.
+### Autores: Daniel Santos, Sérgio Correia e Tiago Costa. Curso: GRSC0925 - UC00608 Programação Alocada a Objetos.
