@@ -157,7 +157,7 @@ with tab_gestao:
             st.rerun()
 
     with col_list:
-        st.subheader("Lista")
+        st.subheader("Lista do Inventário")
         for d in inv.list_devices():
             with st.expander(f"{d.name} ({d.device_type})"):
                 st.write(f"Modelo: {d.model} | Serial Interface: {'Sim' if d.serial_interface else 'Não'}")
