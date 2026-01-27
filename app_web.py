@@ -13,7 +13,6 @@ st.set_page_config(page_title="Network Manager Pro", layout="wide")
 # --- INICIALIZAÇÃO DO INVENTÁRIO (SESSION STATE) ---
 if 'inv' not in st.session_state:
     if os.path.exists("inventario.json"):
-        # Tenta carregar dados existentes, caso contrário cria novo inventário
         try:
             st.session_state.inv = load_from_json("inventario.json")
         except:
@@ -27,23 +26,19 @@ inv = st.session_state.inv
 # SIDEBAR: GESTÃO DE DADOS E DOWNLOADS
 # ==================================================
 with st.sidebar:
-    st.title("💾 Gestão de Dados")
+    st.title("Gestão de Dados")
     
-    # Salvar no servidor (disco temporário no deploy)
     if st.button("Guardar no Servidor"):
         save_to_json(inv, "inventario.json")
-        st.success("Dados guardados no servidor!")
+        st.success("Dados guardados no servidor.")
     
-    # Recarregar dados do ficheiro do servidor
     if st.button("Recarregar do Ficheiro"):
         st.session_state.inv = load_from_json("inventario.json")
         st.rerun()
     
     st.divider()
     
-    # --- BOTÃO DE DOWNLOAD (Para o teu PC) ---
     st.subheader("Download Local")
-    # Prepara a lista de dicionários para o download
     inventory_data = [d.to_dict() for d in inv.list_devices()]
     json_string = json.dumps(inventory_data, indent=2, ensure_ascii=False)
     
@@ -54,16 +49,16 @@ with st.sidebar:
         mime="application/json"
     )
 
-st.title("🌐 Sistema de Gestão de Rede")
+st.title("Sistema de Gestão de Rede")
 
 # ==================================================
 # DEFINIÇÃO DOS SEPARADORES (TABS)
 # ==================================================
 tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs([
-    "🛠️ Gestão", 
-    "🔍 Consultas", 
-    "📊 Tráfego e Políticas",
-    "🔗 Ligações"
+    "Gestão", 
+    "Consultas", 
+    "Tráfego e Políticas",
+    "Ligações"
 ])
 
 # --- 1. TAB GESTÃO (Adicionar, Remover, Listar) ---
@@ -76,22 +71,24 @@ with tab_gestao:
         nome = st.text_input("Nome Único (Ex: R1, SW1, EP1)").strip()
         
         if tipo == "ROUTER":
-            ipv4 = st.text_input("IPv4 (Router)")
+            # IPv4 marcado como opcional
+            ipv4 = st.text_input("IPv4 (Opcional)")
             mac = st.text_input("MAC (Router)")
             if st.button("Adicionar Router"):
                 try:
                     inv.add_device(Router(nome, ipv4, "", mac))
-                    st.success(f"Router '{nome}' adicionado!")
+                    st.success(f"Router '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
 
         elif tipo == "SWITCH":
+            # Switch já possuía IPv4 opcional por omissão no projeto
             ports = st.number_input("Nº de Portas", 1, 48, 24)
             mac = st.text_input("MAC (Switch)")
             if st.button("Adicionar Switch"):
                 try:
                     inv.add_device(Switch(nome, "", mac, ports))
-                    st.success(f"Switch '{nome}' adicionado!")
+                    st.success(f"Switch '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
 
@@ -100,18 +97,19 @@ with tab_gestao:
             if st.button("Adicionar AP"):
                 try:
                     inv.add_device(AccessPoint(nome, ssid))
-                    st.success(f"AP '{nome}' adicionado!")
+                    st.success(f"AP '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
 
         elif tipo == "ENDPOINT":
             uid = st.text_input("User ID")
-            ipv4 = st.text_input("IPv4 (Endpoint)")
+            # IPv4 marcado como opcional
+            ipv4 = st.text_input("IPv4 (Opcional)")
             mac = st.text_input("MAC (Endpoint)")
             if st.button("Adicionar Endpoint"):
                 try:
                     inv.add_device(Endpoint(nome, uid, ipv4, "", mac))
-                    st.success(f"Endpoint '{nome}' adicionado!")
+                    st.success(f"Endpoint '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
 
@@ -158,7 +156,7 @@ with tab_consultas:
     with c4:
         st.markdown("**Conectividade**")
         st.write("Ver anfitriões com carga.")
-        if st.button("Listar CONNECTED"):
+        if st.button("Listar Conectados"):
             results = [
                 d for d in inv.list_devices() 
                 if len(getattr(d, "connected_devices", [])) > 0 or 
@@ -169,7 +167,7 @@ with tab_consultas:
             else:
                 for r in results:
                     n = len(getattr(r, "connected_devices", [])) or len(getattr(r, "connected_endpoints", []))
-                    st.write(f"✅ **{r.name}**: {n} ligações")
+                    st.write(f"{r.name} ({r.device_type}): {n} ligações")
 
 # --- 3. TAB TRÁFEGO (Monitorização e Regras) ---
 with tab_trafego:
@@ -183,7 +181,6 @@ with tab_trafego:
             target = st.selectbox("Dispositivo", eps)
             ep_obj = inv.get_endpoint(target)
             
-            # Mostra valores atuais para facilitar a atualização
             up_val = st.number_input("Novo Upload (MB)", min_value=0.0, value=float(ep_obj.traffic_up_mb))
             down_val = st.number_input("Novo Download (MB)", min_value=0.0, value=float(ep_obj.traffic_down_mb))
             
@@ -191,7 +188,7 @@ with tab_trafego:
                 if ep_obj:
                     ep_obj.traffic_up_mb = up_val
                     ep_obj.traffic_down_mb = down_val
-                    st.success(f"Consumo de '{target}' atualizado!")
+                    st.success(f"Consumo de '{target}' atualizado.")
                     st.rerun()
         
         st.divider()
@@ -199,18 +196,18 @@ with tab_trafego:
         n_top = st.slider("Ver Top N", 1, 10, 3)
         for i, t in enumerate(inv.top_consumers(n_top), 1):
             total = t.traffic_up_mb + t.traffic_down_mb
-            st.write(f"{i}. **{t.name}**: {total:.2f} MB")
+            st.write(f"{i}. {t.name}: {total:.2f} MB")
 
     with col_pol:
         st.markdown("### Política de Suspensão")
         limit = st.number_input("Limite Máximo (MB)", min_value=1.0, value=100.0)
-        tempo = st.number_input("Minutos de Castigo", min_value=1, value=30)
+        tempo = st.number_input("Minutos de Suspensão", min_value=1, value=30)
         
         if st.button("Aplicar Limites"):
             afetados = inv.apply_traffic_policy(limit, tempo)
             if afetados:
-                st.warning(f"{len(afetados)} Endpoints suspensos!")
-                for a in afetados: st.write(f"🚫 {a.name} (até {a.suspended_until})")
+                st.warning(f"{len(afetados)} Endpoints suspensos.")
+                for a in afetados: st.write(f"Suspenso: {a.name} (até {a.suspended_until})")
             else:
                 st.success("Tudo dentro dos limites.")
 
@@ -229,11 +226,11 @@ with tab_ligacoes:
             others = [d.name for d in inv.list_devices() if d.name != h_name]
             t_name = st.selectbox("Dispositivo Remoto", others)
             
-            if st.button("Ligar Cabos"):
+            if st.button("Ligar"):
                 h_obj = inv.devices.get(h_name)
                 try:
                     h_obj.connect_device(t_name)
-                    st.success("Ligação efetuada!")
+                    st.success("Ligação efetuada.")
                     st.rerun()
                 except ValueError as e: st.error(e)
 
@@ -248,7 +245,7 @@ with tab_ligacoes:
             else:
                 for c in cons:
                     c1, c2 = st.columns([4, 1])
-                    c1.write(f"🔌 {c}")
+                    c1.write(f"Ligação: {c}")
                     if c2.button("Desligar", key=f"dis_{view_h}_{c}"):
                         h_obj.disconnect_device(c)
                         st.rerun()
