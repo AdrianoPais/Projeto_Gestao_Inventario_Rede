@@ -129,7 +129,7 @@ with tab_gestao:
         if tipo == "ROUTER":
             ipv4 = st.text_input("IPv4 (Opcional)", value=getattr(dev_edit, 'ipv4', "") if is_editing else "", key="add_ip_router")
             mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "", key="add_mac_router")
-            if st.button("Confirmar Router", key="btn_confirm_router"):
+            if st.button("Adicionar Router", key="btn_confirm_router"):
                 process_update(Router(nome, ipv4, "", mac, modelo, ser_bool, obs))
 
         elif tipo == "SWITCH":
