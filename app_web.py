@@ -167,11 +167,16 @@ with tab_gestao:
         st.subheader("Lista do Inventário")
         for d in inv.list_devices():
             with st.expander(f"{d.name} ({d.device_type})"):
-                st.write(f"Modelo: {d.model} | Serial Interface: {'Sim' if d.serial_interface else 'Não'}")
-                # --- AQUI ESTÁ A ALTERAÇÃO ---
-                # Mostra as observações. Se estiver vazio, mostra um traço "-"
-                st.write(f"**Obs.:** {d.observations if d.observations else '-'}")
-                # -----------------------------
+                
+                # --- ALTERAÇÃO AQUI: MAC ADDRESS ADICIONADO ---
+                # getattr(d, 'mac_address', '-') evita erro se for AP
+                mac_val = getattr(d, 'mac_address', '-')
+                st.write(f"**MAC:** {mac_val} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
+                # ----------------------------------------------
+
+                # Observações destacadas
+                st.info(f"**Obs.:** {d.observations if d.observations else 'Sem observações.'}")
+                
                 st.text(str(d))
                 c1, c2 = st.columns(2)
                 if c1.button("Editar Dispositivo", key=f"ed_{d.name}"):
