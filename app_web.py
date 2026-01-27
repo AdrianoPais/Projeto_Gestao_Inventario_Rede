@@ -23,6 +23,26 @@ if 'editing_device' not in st.session_state:
     st.session_state.editing_device = None
 
 # ==================================================
+# FUNÇÃO AUXILIAR PARA LIMPAR FORMULÁRIO
+# ==================================================
+def reset_form_state():
+    """
+    Limpa a memória dos inputs para garantir que o Autofill funciona
+    quando trocamos de dispositivo ou cancelamos a edição.
+    """
+    keys_to_clear = [
+        "add_tipo_select", "add_nome_input", "add_modelo_input", 
+        "add_serial_select", "add_obs_input",
+        "add_ip_router", "add_mac_router",
+        "add_ports_sw", "add_giga_sw", "add_fast_sw", "add_mac_sw",
+        "add_ssid_ap",
+        "add_uid_ep", "add_ip_ep", "add_mac_ep"
+    ]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+
+# ==================================================
 # SIDEBAR: GESTÃO DE DADOS
 # ==================================================
 with st.sidebar:
@@ -35,6 +55,7 @@ with st.sidebar:
     if st.button("Recarregar do Ficheiro", key="btn_reload_srv"):
         st.session_state.inv = load_from_json("inventario.json")
         st.session_state.editing_device = None
+        reset_form_state() # Limpa form ao recarregar
         st.rerun()
     
     st.divider()
@@ -83,6 +104,8 @@ with st.sidebar:
                     temp_inv.add_device(obj)
 
                 st.session_state.inv = temp_inv
+                st.session_state.editing_device = None
+                reset_form_state()
                 st.success("Backup restaurado!")
                 st.rerun()
             except Exception as e: st.error(f"Erro no Upload: {e}")
@@ -127,6 +150,7 @@ with tab_gestao:
                 inv.remove_device(dev_edit.name)
             inv.add_device(new_obj)
             st.session_state.editing_device = None
+            reset_form_state() # Limpa o form após guardar
             st.rerun()
 
         if tipo == "ROUTER":
@@ -161,6 +185,7 @@ with tab_gestao:
 
         if is_editing and st.button("Cancelar", key="btn_cancel_edit"):
             st.session_state.editing_device = None
+            reset_form_state() # Limpa o form ao cancelar
             st.rerun()
 
     with col_list:
@@ -168,20 +193,26 @@ with tab_gestao:
         for d in inv.list_devices():
             with st.expander(f"{d.name} ({d.device_type})"):
                 
-                # --- ALTERAÇÃO AQUI: MAC ADDRESS ADICIONADO ---
-                # getattr(d, 'mac_address', '-') evita erro se for AP
+                # MAC Address e Info Técnica
                 mac_val = getattr(d, 'mac_address', '-')
                 st.write(f"**MAC:** {mac_val} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
-                # ----------------------------------------------
-
+                
                 # Observações destacadas
                 st.info(f"**Obs.:** {d.observations if d.observations else 'Sem observações.'}")
                 
                 st.text(str(d))
                 c1, c2 = st.columns(2)
+                
+                # === A CORREÇÃO PRINCIPAL ESTÁ AQUI ===
                 if c1.button("Editar Dispositivo", key=f"ed_{d.name}"):
+                    # 1. Limpa a memória dos inputs antigos
+                    reset_form_state()
+                    # 2. Define o dispositivo que queremos editar
                     st.session_state.editing_device = d
+                    # 3. Recarrega a página (agora os inputs vão ler os valores corretos)
                     st.rerun()
+                # ======================================
+                
                 if c2.button("Eliminar Dispositivo", key=f"el_{d.name}"):
                     inv.remove_device(d.name)
                     st.rerun()
@@ -190,6 +221,7 @@ with tab_gestao:
         if st.button("NUKE - Limpar Tudo", type="primary", use_container_width=True, key="btn_nuke_all"):
             for d in list(inv.list_devices()): inv.remove_device(d.name)
             st.session_state.editing_device = None
+            reset_form_state()
             st.rerun()
 
 # --- 2. TAB CONSULTAS (Filtros Atualizados) ---
