@@ -43,7 +43,6 @@ def limpar_form():
 def carregar_dados_para_form(device):
     """
     Força os dados do dispositivo para dentro dos inputs do Streamlit via Session State.
-    Isto garante que o autofill funciona mesmo que o formulário já tenha sido usado.
     """
     # 1. Dados Comuns
     st.session_state['add_tipo_select'] = device.device_type
@@ -71,6 +70,18 @@ def carregar_dados_para_form(device):
         st.session_state['add_ip_ep'] = getattr(device, 'ipv4', '')
         st.session_state['add_mac_ep'] = getattr(device, 'mac_address', '')
 
+def click_editar(device):
+    """
+    Callback executado ANTES do script recarregar.
+    Define o dispositivo em edição e preenche o formulário.
+    """
+    st.session_state.editing_device = device
+    carregar_dados_para_form(device)
+
+def click_cancelar():
+    """Callback para cancelar a edição."""
+    st.session_state.editing_device = None
+    limpar_form()
 
 # ==================================================
 # SIDEBAR: GESTÃO DE DADOS
@@ -84,8 +95,7 @@ with st.sidebar:
     
     if st.button("Recarregar do Ficheiro", key="btn_reload_srv"):
         st.session_state.inv = load_from_json("inventario.json")
-        st.session_state.editing_device = None
-        limpar_form()
+        click_cancelar() # Usa a função de cancelar para limpar tudo
         st.rerun()
     
     st.divider()
@@ -225,11 +235,9 @@ with tab_gestao:
             if st.button(f"{acao_btn} Endpoint", key="btn_confirm_ep"):
                 process_update(Endpoint(nome, uid, ipv4, "", mac, modelo, ser_bool, obs))
 
-        # Botão Cancelar
-        if is_editing and st.button("Cancelar", key="btn_cancel_edit"):
-            st.session_state.editing_device = None
-            limpar_form() # Limpa tudo ao cancelar
-            st.rerun()
+        # Botão Cancelar (agora usa callback para ser mais seguro)
+        if is_editing:
+            st.button("Cancelar", key="btn_cancel_edit", on_click=click_cancelar)
 
     with col_list:
         st.subheader("Lista do Inventário")
@@ -248,12 +256,15 @@ with tab_gestao:
                 
                 c1, c2 = st.columns(2)
                 
-                # === BOTÃO EDITAR CORRIGIDO ===
-                if c1.button("Editar Dispositivo", key=f"ed_{d.name}"):
-                    st.session_state.editing_device = d
-                    carregar_dados_para_form(d) # <--- AQUI ESTÁ A CORREÇÃO
-                    st.rerun()
-                # ==============================
+                # === BOTÃO EDITAR CORRIGIDO COM CALLBACK ===
+                # O argumento 'on_click' garante que o estado é atualizado ANTES
+                # de o Streamlit tentar desenhar o formulário novamente.
+                c1.button("Editar Dispositivo", 
+                          key=f"ed_{d.name}", 
+                          on_click=click_editar, 
+                          args=(d,)
+                )
+                # ===========================================
                 
                 if c2.button("Eliminar Dispositivo", key=f"el_{d.name}"):
                     inv.remove_device(d.name)
