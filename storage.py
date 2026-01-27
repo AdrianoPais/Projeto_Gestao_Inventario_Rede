@@ -10,8 +10,7 @@ def save_to_json(inv: NetworkInventory, filename: str):
     """
     data = []
     for d in inv.list_devices():
-        # O método to_dict() das classes atualizadas já inclui 
-        # o modelo, observações e detalhes das portas.
+        # O método to_dict() agora inclui serial, model e observations
         data.append(d.to_dict())
 
     with open(filename, "w", encoding="utf-8") as f:
@@ -20,7 +19,7 @@ def save_to_json(inv: NetworkInventory, filename: str):
 def load_from_json(filename: str) -> NetworkInventory:
     """
     Lê o ficheiro JSON e reconstrói os objetos de rede, restaurando
-    modelos, estados, configurações de portas e observações.
+    modelos, números de série, estados e observações técnicas.
     """
     with open(filename, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -33,6 +32,7 @@ def load_from_json(filename: str) -> NetworkInventory:
         # Extrai campos comuns a todos os equipamentos
         obs = item.get("observations", "")
         mod = item.get("model", "")
+        ser = item.get("serial", "") # Novo: Recuperação do Serial Number
 
         # -------------------------
         # Caso seja um ROUTER
@@ -43,8 +43,9 @@ def load_from_json(filename: str) -> NetworkInventory:
                 ipv4=item.get("ipv4", ""),
                 ipv6=item.get("ipv6") or "",
                 mac_address=item["mac_address"],
-                model=mod,            # Restauro do modelo
-                observations=obs      # Restauro de observações
+                model=mod,
+                serial=ser,           # Restauro do S/N
+                observations=obs
             )
             obj.status = item.get("status", obj.status)
             obj.connected_devices = list(item.get("connected_devices", []))
@@ -58,11 +59,11 @@ def load_from_json(filename: str) -> NetworkInventory:
                 ipv4=item.get("ipv4", ""),
                 mac_address=item["mac_address"],
                 ports=int(item["ports"]),
-                # Restauro da subdivisão de portas
                 eth_ports=item.get("eth_ports", 0),
                 fast_eth_ports=item.get("fast_eth_ports", 0),
                 giga_eth_ports=item.get("giga_eth_ports", 0),
                 model=mod,
+                serial=ser,           # Restauro do S/N
                 observations=obs
             )
             obj.status = item.get("status", obj.status)
@@ -76,6 +77,7 @@ def load_from_json(filename: str) -> NetworkInventory:
                 name=item["name"],
                 ssid=item["ssid"],
                 model=mod,
+                serial=ser,           # Restauro do S/N
                 observations=obs
             )
             obj.status = item.get("status", obj.status)
@@ -92,6 +94,7 @@ def load_from_json(filename: str) -> NetworkInventory:
                 ipv6=item.get("ipv6") or "",
                 mac_address=item["mac_address"],
                 model=mod,
+                serial=ser,           # Restauro do S/N
                 observations=obs
             )
             obj.status = item.get("status", obj.status)
@@ -110,7 +113,7 @@ def load_from_json(filename: str) -> NetworkInventory:
         else:
             continue
 
-        # Adiciona o objeto reconstruído ao novo inventário
+        # Adiciona o objeto reconstruído ao inventário
         inv.add_device(obj)
 
     return inv
