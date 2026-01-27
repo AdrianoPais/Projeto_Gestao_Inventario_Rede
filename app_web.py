@@ -91,28 +91,82 @@ def click_cancelar():
 with st.sidebar:
     st.title("Gestão de Dados")
     
+    # --- BOTÕES DE SERVIDOR (MANTER IGUAL) ---
     if st.button("Guardar no Servidor", key="btn_save_srv"):
         save_to_json(inv, "inventario.json")
         st.success("Dados guardados.")
     
     if st.button("Recarregar do Ficheiro", key="btn_reload_srv"):
         st.session_state.inv = load_from_json("inventario.json")
-        click_cancelar() # Usa a função de cancelar para limpar tudo
+        st.session_state.editing_device = None
+        limpar_form()
         st.rerun()
     
     st.divider()
-    st.subheader("Download Local")
-    inventory_data = [d.to_dict() for d in inv.list_devices()]
-    st.download_button(
-        label="Descarregar JSON", 
-        data=json.dumps(inventory_data, indent=2), 
-        file_name="inventario.json", 
-        mime="application/json",
-        key="btn_download_json"
-    )
+    st.subheader("Exportar Dados")
+
+    # Prepara os dados uma única vez
+    lista_dicts = [d.to_dict() for d in inv.list_devices()]
+    
+    if not lista_dicts:
+        st.warning("Inventário vazio.")
+    else:
+        # Cria um DataFrame do Pandas (Tabela inteligente)
+        df = pd.DataFrame(lista_dicts)
+
+        # 1. DOWNLOAD JSON (O que já tinha)
+        st.download_button(
+            label="📄 Download JSON", 
+            data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
+            file_name="inventario.json", 
+            mime="application/json",
+            key="btn_json"
+        )
+
+        # 2. DOWNLOAD CSV
+        # Converte a tabela para CSV
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📊 Download CSV",
+            data=csv_data,
+            file_name="inventario.csv",
+            mime="text/csv",
+            key="btn_csv"
+        )
+
+        # 3. DOWNLOAD EXCEL (Requer openpyxl)
+        # O Excel é binário, precisa de um buffer (BytesIO)
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Dispositivos')
+        
+        st.download_button(
+            label="📗 Download Excel",
+            data=buffer.getvalue(),
+            file_name="inventario.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_excel"
+        )
+
+        # 4. DOWNLOAD TXT (Relatório legível)
+        # Cria um texto formatado linha a linha
+        txt_lines = []
+        for d in inv.list_devices():
+            txt_lines.append(f"--- {d.name} ---")
+            txt_lines.append(str(d))
+            txt_lines.append(f"Obs: {d.observations}\n")
+        
+        st.download_button(
+            label="📝 Download TXT",
+            data="\n".join(txt_lines),
+            file_name="inventario.txt",
+            mime="text/plain",
+            key="btn_txt"
+        )
 
     st.divider()
     st.subheader("Upload Local")
+    # ... (MANTENHA O RESTO DO CÓDIGO DE UPLOAD IGUAL) ...
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
 
     if uploaded_file is not None:
@@ -151,7 +205,7 @@ with st.sidebar:
                 st.success("Backup restaurado!")
                 st.rerun()
             except Exception as e: st.error(f"Erro no Upload: {e}")
-
+                
 st.title("Sistema de Gestão de Rede")
 
 # ==================================================
