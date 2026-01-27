@@ -102,11 +102,13 @@ with tab_gestao:
 
     with col_add:
         st.subheader("Editar" if is_editing else "Novo")
-        tipo = st.selectbox("Tipo", ["ROUTER", "SWITCH", "AP", "ENDPOINT"], 
-                            index=["ROUTER", "SWITCH", "AP", "ENDPOINT"].index(dev_edit.device_type) if is_editing else 0,
-                            disabled=is_editing, key="add_tipo_select")
         
-        nome = st.text_input("Nome Único", value=dev_edit.name if is_editing else "", strip=True, key="add_nome_input")
+        lista_tipos = ["ROUTER", "SWITCH", "AP", "ENDPOINT"]
+        tipo_idx = lista_tipos.index(dev_edit.device_type) if is_editing else 0
+        tipo = st.selectbox("Tipo", lista_tipos, index=tipo_idx, disabled=is_editing, key="add_tipo_select")
+        
+        # CORREÇÃO: Removido strip=True
+        nome = st.text_input("Nome Único", value=dev_edit.name if is_editing else "", key="add_nome_input").strip()
         modelo = st.text_input("Modelo", value=dev_edit.model if is_editing else "", key="add_modelo_input")
         ser_sel = st.selectbox("Interface Serial?", ["Não", "Sim"], 
                                index=1 if getattr(dev_edit, 'serial_interface', False) else 0, key="add_serial_select")
@@ -159,7 +161,7 @@ with tab_gestao:
         st.subheader("Lista")
         for d in inv.list_devices():
             with st.expander(f"{d.name} ({d.device_type})"):
-                st.write(f"Modelo: {d.model} | Serial: {'Sim' if d.serial_interface else 'Não'}")
+                st.write(f"Modelo: {d.model} | Serial Interface: {'Sim' if d.serial_interface else 'Não'}")
                 st.text(str(d))
                 c1, c2 = st.columns(2)
                 if c1.button("Editar", key=f"ed_{d.name}"):
@@ -168,61 +170,83 @@ with tab_gestao:
                 if c2.button("Eliminar", key=f"el_{d.name}"):
                     inv.remove_device(d.name)
                     st.rerun()
-        if st.button("NUKE", type="primary", use_container_width=True, key="btn_nuke_all"):
+        
+        st.divider()
+        if st.button("NUKE - Limpar Tudo", type="primary", use_container_width=True, key="btn_nuke_all"):
             for d in list(inv.list_devices()): inv.remove_device(d.name)
+            st.session_state.editing_device = None
             st.rerun()
 
-# --- 2. TAB CONSULTAS (Corrigido com Keys Únicas) ---
+# --- 2. TAB CONSULTAS ---
 with tab_consultas:
     st.subheader("Pesquisa")
     c1, c2 = st.columns(2)
     with c1:
-        # Adicionada key="query_modelo" para evitar conflito com a aba Gestão
-        search_m = st.text_input("Modelo", key="query_modelo")
-        if st.button("Filtrar Modelo", key="btn_filter_model"):
-            for r in [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]: st.text(str(r))
+        search_m = st.text_input("Filtrar por Modelo", key="query_modelo")
+        if st.button("Pesquisar Modelo", key="btn_filter_model"):
+            results = [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]
+            if results:
+                for r in results: st.text(str(r))
+            else:
+                st.warning("Nenhum modelo encontrado.")
+                
     with c2:
-        # Adicionada key="query_ser" para evitar conflito com a aba Gestão
         search_ser = st.selectbox("Interface Serial?", ["Não", "Sim"], key="query_ser")
         if st.button("Filtrar Serial", key="btn_filter_serial"):
-            for r in [d for d in inv.list_devices() if d.serial_interface == (search_ser == "Sim")]: st.text(str(r))
+            results = [d for d in inv.list_devices() if d.serial_interface == (search_ser == "Sim")]
+            if results:
+                for r in results: st.text(str(r))
+            else:
+                st.info("Nenhum dispositivo encontrado com este critério.")
 
 # --- 3. TAB TRÁFEGO ---
 with tab_trafego:
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
-    if not eps: st.info("Sem Endpoints.")
+    if not eps: 
+        st.info("Adicione Endpoints na Gestão para monitorizar o tráfego.")
     else:
-        target = st.selectbox("Dispositivo", [e.name for e in eps], key="traffic_target_select")
+        target = st.selectbox("Selecionar Endpoint", [e.name for e in eps], key="traffic_target_select")
         ep_obj = inv.get_endpoint(target)
-        up = st.number_input("Upload (MB)", value=ep_obj.traffic_up_mb, key="input_traffic_up")
-        down = st.number_input("Download (MB)", value=ep_obj.traffic_down_mb, key="input_traffic_down")
-        if st.button("Atualizar Tráfego", key="btn_update_traffic"):
+        up = st.number_input("Novo Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
+        down = st.number_input("Novo Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
+        if st.button("Atualizar Consumo", key="btn_update_traffic"):
             ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down
+            st.success("Dados atualizados!")
             st.rerun()
-        st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
+        
+        st.divider()
+        st.subheader("Visualização de Consumo")
+        chart_data = {e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps}
+        st.bar_chart(chart_data)
 
 # --- 4. TAB LIGAÇÕES ---
 with tab_ligacoes:
     hosts = [d for d in inv.list_devices() if hasattr(d, "connected_devices") or hasattr(d, "connected_endpoints")]
-    if not hosts: st.info("Sem Routers/Switches/APs.")
+    if not hosts: 
+        st.info("Crie Routers ou Switches para estabelecer ligações.")
     else:
-        h_name = st.selectbox("Anfitrião", [h.name for h in hosts], key="host_link_select")
+        h_name = st.selectbox("Escolher Equipamento Base", [h.name for h in hosts], key="host_link_select")
         h_obj = inv.devices.get(h_name)
         
-        c1, c2 = st.columns(2)
-        with c1:
+        c_link, c_view = st.columns(2)
+        with c_link:
+            st.markdown("### Criar Nova Ligação")
             others = [d.name for d in inv.list_devices() if d.name != h_name]
-            target = st.selectbox("Ligar a", others, key="target_link_select")
-            if st.button("Ligar", key="btn_establish_link"):
+            target = st.selectbox("Ligar a:", others, key="target_link_select")
+            if st.button("Estabelecer Ligação", key="btn_establish_link"):
                 try:
                     if hasattr(h_obj, "connect_device"): h_obj.connect_device(target)
                     else: h_obj.connect_endpoint(target)
+                    st.success(f"Ligado: {h_name} <-> {target}")
                     st.rerun()
                 except Exception as e: st.error(e)
-        with c2:
+        
+        with c_view:
+            st.markdown("### Ligações Atuais")
             cons = getattr(h_obj, "connected_devices", []) or getattr(h_obj, "connected_endpoints", [])
+            if not cons:
+                st.write("Sem dispositivos ligados.")
             for c in cons:
-                # Botão com key única baseada na origem e destino
                 if st.button(f"Desligar {c}", key=f"dis_{h_name}_{c}"):
                     if hasattr(h_obj, "disconnect_device"): h_obj.disconnect_device(c)
                     else: h_obj.disconnect_endpoint(c)
