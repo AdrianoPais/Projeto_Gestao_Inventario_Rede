@@ -70,6 +70,9 @@ with tab_gestao:
         tipo = st.selectbox("Tipo", ["ROUTER", "SWITCH", "AP", "ENDPOINT"])
         nome = st.text_input("Nome Unico (Ex: R1, SW1, EP1)").strip()
         
+        # Novo campo de Modelo para todos os tipos
+        modelo = st.text_input("Modelo (Ex: 2911, Catalyst, 2960)")
+        
         # Campo de Observações comum a todos
         obs = st.text_area("Observacoes ou Defeitos", help="Registe aqui notas tecnicas ou avarias.")
 
@@ -78,17 +81,34 @@ with tab_gestao:
             mac = st.text_input("MAC (Router)")
             if st.button("Adicionar Router"):
                 try:
-                    inv.add_device(Router(nome, ipv4, "", mac, observations=obs))
+                    inv.add_device(Router(nome, ipv4, "", mac, model=modelo, observations=obs))
                     st.success(f"Router '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
 
         elif tipo == "SWITCH":
-            ports = st.number_input("Portas", 1, 48, 24)
+            total_p = st.number_input("Nº Total de Portas", 1, 48, 24)
+            
+            st.write("Distribuição de Velocidade:")
+            # Slider para Gigabit
+            giga_p = st.slider("Portas GigabitEthernet (1000Mbps)", 0, total_p, 0)
+            
+            # Slider para Fast limitado pela sobra
+            sobra_fast = total_p - giga_p
+            fast_p = st.slider("Portas FastEthernet (100Mbps)", 0, sobra_fast, sobra_fast)
+            
+            # Resto são Ethernet
+            eth_p = total_p - giga_p - fast_p
+            st.info(f"Portas Ethernet (10Mbps) restantes: {eth_p}")
+            
             mac = st.text_input("MAC (Switch)")
             if st.button("Adicionar Switch"):
                 try:
-                    inv.add_device(Switch(nome, "", mac, ports, observations=obs))
+                    inv.add_device(Switch(
+                        nome, "", mac, total_p, 
+                        eth_ports=eth_p, fast_eth_ports=fast_p, giga_eth_ports=giga_p,
+                        model=modelo, observations=obs
+                    ))
                     st.success(f"Switch '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
@@ -97,7 +117,7 @@ with tab_gestao:
             ssid = st.text_input("SSID da Rede")
             if st.button("Adicionar AP"):
                 try:
-                    inv.add_device(AccessPoint(nome, ssid, observations=obs))
+                    inv.add_device(AccessPoint(nome, ssid, model=modelo, observations=obs))
                     st.success(f"AP '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
@@ -108,7 +128,7 @@ with tab_gestao:
             mac = st.text_input("MAC (Endpoint)")
             if st.button("Adicionar Endpoint"):
                 try:
-                    inv.add_device(Endpoint(nome, uid, ipv4, "", mac, observations=obs))
+                    inv.add_device(Endpoint(nome, uid, ipv4, "", mac, model=modelo, observations=obs))
                     st.success(f"Endpoint '{nome}' adicionado.")
                     st.rerun()
                 except ValueError as e: st.error(f"Erro: {e}")
@@ -121,8 +141,13 @@ with tab_gestao:
         else:
             for d in devices:
                 with st.expander(f"{d.name} ({d.device_type}) - {d.status}"):
+                    # Mostrar Modelo
+                    if hasattr(d, "model") and d.model:
+                        st.write(f"**Modelo:** {d.model}")
+                    
                     st.text(str(d))
-                    # Mostrar Observações se existirem
+                    
+                    # Mostrar Observações
                     if hasattr(d, "observations") and d.observations:
                         st.warning(f"Notas: {d.observations}")
                     
@@ -207,7 +232,6 @@ with tab_trafego:
     with col_pol:
         st.markdown("### Grafico de Consumo Total")
         if endpoints:
-            # Prepara dados para o gráfico
             chart_data = {e.name: (e.traffic_up_mb + e.traffic_down_mb) for e in endpoints}
             st.bar_chart(chart_data)
         else:
