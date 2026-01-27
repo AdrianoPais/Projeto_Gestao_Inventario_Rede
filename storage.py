@@ -10,7 +10,8 @@ def save_to_json(inv: NetworkInventory, filename: str):
     """
     data = []
     for d in inv.list_devices():
-        # O método to_dict() já inclui as observações e IPv4 opcional
+        # O método to_dict() das classes atualizadas já inclui 
+        # o modelo, observações e detalhes das portas.
         data.append(d.to_dict())
 
     with open(filename, "w", encoding="utf-8") as f:
@@ -18,8 +19,8 @@ def save_to_json(inv: NetworkInventory, filename: str):
 
 def load_from_json(filename: str) -> NetworkInventory:
     """
-    Lê o ficheiro JSON e reconstrói os objetos de rede com base no tipo,
-    restaurando estados, ligações e observações técnicas.
+    Lê o ficheiro JSON e reconstrói os objetos de rede, restaurando
+    modelos, estados, configurações de portas e observações.
     """
     with open(filename, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -29,8 +30,9 @@ def load_from_json(filename: str) -> NetworkInventory:
     for item in data:
         t = item.get("type")
         
-        # Extrai observações comuns a todos os tipos
+        # Extrai campos comuns a todos os equipamentos
         obs = item.get("observations", "")
+        mod = item.get("model", "")
 
         # -------------------------
         # Caso seja um ROUTER
@@ -38,10 +40,11 @@ def load_from_json(filename: str) -> NetworkInventory:
         if t == "ROUTER":
             obj = Router(
                 name=item["name"],
-                ipv4=item.get("ipv4", ""), # IPv4 opcional
+                ipv4=item.get("ipv4", ""),
                 ipv6=item.get("ipv6") or "",
                 mac_address=item["mac_address"],
-                observations=obs            # Restauro de observações
+                model=mod,            # Restauro do modelo
+                observations=obs      # Restauro de observações
             )
             obj.status = item.get("status", obj.status)
             obj.connected_devices = list(item.get("connected_devices", []))
@@ -55,7 +58,12 @@ def load_from_json(filename: str) -> NetworkInventory:
                 ipv4=item.get("ipv4", ""),
                 mac_address=item["mac_address"],
                 ports=int(item["ports"]),
-                observations=obs            # Restauro de observações
+                # Restauro da subdivisão de portas
+                eth_ports=item.get("eth_ports", 0),
+                fast_eth_ports=item.get("fast_eth_ports", 0),
+                giga_eth_ports=item.get("giga_eth_ports", 0),
+                model=mod,
+                observations=obs
             )
             obj.status = item.get("status", obj.status)
             obj.connected_devices = list(item.get("connected_devices", []))
@@ -67,7 +75,8 @@ def load_from_json(filename: str) -> NetworkInventory:
             obj = AccessPoint(
                 name=item["name"],
                 ssid=item["ssid"],
-                observations=obs            # Restauro de observações
+                model=mod,
+                observations=obs
             )
             obj.status = item.get("status", obj.status)
             obj.connected_endpoints = list(item.get("connected_endpoints", []))
@@ -79,10 +88,11 @@ def load_from_json(filename: str) -> NetworkInventory:
             obj = Endpoint(
                 name=item["name"],
                 user_id=item["user_id"],
-                ipv4=item.get("ipv4", ""), # IPv4 opcional
+                ipv4=item.get("ipv4", ""),
                 ipv6=item.get("ipv6") or "",
                 mac_address=item["mac_address"],
-                observations=obs            # Restauro de observações
+                model=mod,
+                observations=obs
             )
             obj.status = item.get("status", obj.status)
             obj.traffic_up_mb = float(item.get("traffic_up_mb", 0.0))
