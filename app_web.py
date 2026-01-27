@@ -107,7 +107,6 @@ with tab_gestao:
         tipo_idx = lista_tipos.index(dev_edit.device_type) if is_editing else 0
         tipo = st.selectbox("Tipo", lista_tipos, index=tipo_idx, disabled=is_editing, key="add_tipo_select")
         
-        # CORREÇÃO: Removido strip=True
         nome = st.text_input("Nome Único", value=dev_edit.name if is_editing else "", key="add_nome_input").strip()
         modelo = st.text_input("Modelo", value=dev_edit.model if is_editing else "", key="add_modelo_input")
         ser_sel = st.selectbox("Interface Serial?", ["Não", "Sim"], 
@@ -177,27 +176,58 @@ with tab_gestao:
             st.session_state.editing_device = None
             st.rerun()
 
-# --- 2. TAB CONSULTAS ---
+# --- 2. TAB CONSULTAS (Filtros Atualizados) ---
 with tab_consultas:
-    st.subheader("Pesquisa")
-    c1, c2 = st.columns(2)
-    with c1:
+    st.subheader("Filtros de Pesquisa")
+    
+    # Primeira Linha de Filtros
+    r1_c1, r1_c2, r1_c3 = st.columns(3)
+    with r1_c1:
         search_m = st.text_input("Filtrar por Modelo", key="query_modelo")
         if st.button("Pesquisar Modelo", key="btn_filter_model"):
             results = [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]
             if results:
                 for r in results: st.text(str(r))
-            else:
-                st.warning("Nenhum modelo encontrado.")
+            else: st.warning("Nenhum modelo encontrado.")
                 
-    with c2:
+    with r1_c2:
         search_ser = st.selectbox("Interface Serial?", ["Não", "Sim"], key="query_ser")
         if st.button("Filtrar Serial", key="btn_filter_serial"):
             results = [d for d in inv.list_devices() if d.serial_interface == (search_ser == "Sim")]
             if results:
                 for r in results: st.text(str(r))
+            else: st.info("Nenhum dispositivo encontrado.")
+
+    with r1_c3:
+        search_t = st.selectbox("Filtrar por Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="query_tipo")
+        if st.button("Pesquisar Tipo", key="btn_filter_tipo"):
+            if search_t == "Todos":
+                results = inv.list_devices()
             else:
-                st.info("Nenhum dispositivo encontrado com este critério.")
+                results = [d for d in inv.list_devices() if d.device_type == search_t]
+            for r in results: st.text(str(r))
+
+    st.divider()
+    
+    # Segunda Linha de Filtros
+    r2_c1, r2_c2 = st.columns(2)
+    with r2_c1:
+        search_s = st.selectbox("Estado do Dispositivo", ["Ativo", "Inativo"], key="query_status")
+        if st.button("Filtrar Estado", key="btn_filter_status"):
+            status_map = {"Ativo": "ACTIVE", "Inativo": "INACTIVE"}
+            results = [d for d in inv.list_devices() if d.status == status_map[search_s]]
+            if results:
+                for r in results: st.text(str(r))
+            else: st.info(f"Nenhum dispositivo {search_s.lower()} encontrado.")
+
+    with r2_c2:
+        search_ip = st.text_input("Pesquisar por IP (IPv4)", key="query_ip")
+        if st.button("Pesquisar IP", key="btn_filter_ip"):
+            # Procura em routers e endpoints que têm atributo ipv4
+            results = [d for d in inv.list_devices() if getattr(d, 'ipv4', '') == search_ip]
+            if results:
+                for r in results: st.text(str(r))
+            else: st.warning("IP não encontrado no inventário.")
 
 # --- 3. TAB TRÁFEGO ---
 with tab_trafego:
