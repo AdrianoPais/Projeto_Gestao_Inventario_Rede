@@ -100,6 +100,9 @@ with tab_gestao:
     is_editing = st.session_state.editing_device is not None
     dev_edit = st.session_state.editing_device
 
+    # Define o texto do botão dinamicamente
+    acao_btn = "Atualizar" if is_editing else "Adicionar"
+
     with col_add:
         st.subheader("Editar Dispositivo" if is_editing else "Novo Dispositivo")
         
@@ -129,7 +132,8 @@ with tab_gestao:
         if tipo == "ROUTER":
             ipv4 = st.text_input("Endereço IPv4 (Opcional)", value=getattr(dev_edit, 'ipv4', "") if is_editing else "", key="add_ip_router")
             mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "", key="add_mac_router")
-            if st.button("Adicionar Router", key="btn_confirm_router"):
+            # Botão com texto dinâmico
+            if st.button(f"{acao_btn} Router", key="btn_confirm_router"):
                 process_update(Router(nome, ipv4, "", mac, modelo, ser_bool, obs))
 
         elif tipo == "SWITCH":
@@ -137,19 +141,22 @@ with tab_gestao:
             giga_p = st.slider("Gigabit Ethernet Ports", 0, total_p, int(getattr(dev_edit, 'giga_eth_ports', 0)), key="add_giga_sw")
             fast_p = st.slider("Fast Ethernet Ports", 0, total_p - giga_p, int(getattr(dev_edit, 'fast_eth_ports', total_p - giga_p)), key="add_fast_sw")
             mac = st.text_input("MAC Address", value=getattr(dev_edit, 'mac_address', "") if is_editing else "", key="add_mac_sw")
-            if st.button("Adicionar Switch", key="btn_confirm_sw"):
+            # Botão com texto dinâmico
+            if st.button(f"{acao_btn} Switch", key="btn_confirm_sw"):
                 process_update(Switch(nome, "", mac, total_p, total_p-giga_p-fast_p, fast_p, giga_p, modelo, ser_bool, obs))
 
         elif tipo == "AP":
             ssid = st.text_input("SSID", value=getattr(dev_edit, 'ssid', "") if is_editing else "", key="add_ssid_ap")
-            if st.button("Adicionar AP", key="btn_confirm_ap"):
+            # Botão com texto dinâmico
+            if st.button(f"{acao_btn} AP", key="btn_confirm_ap"):
                 process_update(AccessPoint(nome, ssid, modelo, ser_bool, obs))
 
         elif tipo == "ENDPOINT":
             uid = st.text_input("User ID", value=getattr(dev_edit, 'user_id', "") if is_editing else "", key="add_uid_ep")
             ipv4 = st.text_input("Endereço IPv4", value=getattr(dev_edit, 'ipv4', "") if is_editing else "", key="add_ip_ep")
             mac = st.text_input("MAC Address", value=getattr(dev_edit, 'mac_address', "") if is_editing else "", key="add_mac_ep")
-            if st.button("Adicionar Endpoint", key="btn_confirm_ep"):
+            # Botão com texto dinâmico
+            if st.button(f"{acao_btn} Endpoint", key="btn_confirm_ep"):
                 process_update(Endpoint(nome, uid, ipv4, "", mac, modelo, ser_bool, obs))
 
         if is_editing and st.button("Cancelar", key="btn_cancel_edit"):
