@@ -10,31 +10,27 @@ from storage import save_to_json, load_from_json
 # ==================================================
 st.set_page_config(page_title="Network Manager Pro", layout="wide")
 
-# Inicialização do Inventário
 if 'inv' not in st.session_state:
     if os.path.exists("inventario.json"):
-        try:
-            st.session_state.inv = load_from_json("inventario.json")
-        except:
-            st.session_state.inv = NetworkInventory()
+        try: st.session_state.inv = load_from_json("inventario.json")
+        except: st.session_state.inv = NetworkInventory()
     else:
         st.session_state.inv = NetworkInventory()
 
 inv = st.session_state.inv
 
-# Estado de Edição
 if 'editing_device' not in st.session_state:
     st.session_state.editing_device = None
 
 # ==================================================
-# SIDEBAR: GESTÃO DE DADOS
+# SIDEBAR: GESTÃO DE DADOS (UPLOAD CORRIGIDO)
 # ==================================================
 with st.sidebar:
     st.title("Gestão de Dados")
     
     if st.button("Guardar no Servidor"):
         save_to_json(inv, "inventario.json")
-        st.success("Dados guardados no servidor.")
+        st.success("Dados guardados.")
     
     if st.button("Recarregar do Ficheiro"):
         st.session_state.inv = load_from_json("inventario.json")
@@ -42,225 +38,187 @@ with st.sidebar:
         st.rerun()
     
     st.divider()
-    
     st.subheader("Download Local")
     inventory_data = [d.to_dict() for d in inv.list_devices()]
-    json_string = json.dumps(inventory_data, indent=2, ensure_ascii=False)
-    
-    st.download_button(
-        label="Descarregar inventario.json",
-        data=json_string,
-        file_name="inventario.json",
-        mime="application/json"
-    )
+    st.download_button(label="Descarregar JSON", data=json.dumps(inventory_data, indent=2), file_name="inventario.json", mime="application/json")
 
     st.divider()
-
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"])
 
     if uploaded_file is not None:
-        if st.button("Restaurar a partir do Upload", use_container_width=True):
+        if st.button("Restaurar Backup", use_container_width=True):
             try:
                 data = json.load(uploaded_file)
                 temp_inv = NetworkInventory()
                 
                 for item in data:
                     t = item.get("type")
-                    obs = item.get("observations", "")
                     mod = item.get("model", "")
-                    # Lê serial_interface como booleano
                     ser_int = item.get("serial_interface", False)
+                    obs = item.get("observations", "")
 
+                    # Reconstrução com recuperação de ligações e tráfego
                     if t == "ROUTER":
-                        obj = Router(item["name"], item.get("ipv4", ""), "", item["mac_address"], 
-                                     model=mod, serial_interface=ser_int, observations=obs)
+                        obj = Router(item["name"], item.get("ipv4", ""), "", item["mac_address"], mod, ser_int, obs)
+                        obj.connected_devices = list(item.get("connected_devices", [])) # RECUPERA LIGAÇÕES
                     elif t == "SWITCH":
                         obj = Switch(item["name"], "", item["mac_address"], int(item["ports"]), 
                                      item.get("eth_ports", 0), item.get("fast_eth_ports", 0), item.get("giga_eth_ports", 0),
-                                     model=mod, serial_interface=ser_int, observations=obs)
+                                     mod, ser_int, obs)
+                        obj.connected_devices = list(item.get("connected_devices", [])) # RECUPERA LIGAÇÕES
                     elif t == "AP":
-                        obj = AccessPoint(item["name"], item["ssid"], model=mod, serial_interface=ser_int, observations=obs)
+                        obj = AccessPoint(item["name"], item["ssid"], mod, ser_int, obs)
+                        obj.connected_endpoints = list(item.get("connected_endpoints", [])) # RECUPERA LIGAÇÕES
                     elif t == "ENDPOINT":
-                        obj = Endpoint(item["name"], item["user_id"], item.get("ipv4", ""), "", item["mac_address"], 
-                                       model=mod, serial_interface=ser_int, observations=obs)
+                        obj = Endpoint(item["name"], item["user_id"], item.get("ipv4", ""), "", item["mac_address"], mod, ser_int, obs)
                         obj.traffic_up_mb = float(item.get("traffic_up_mb", 0.0))
                         obj.traffic_down_mb = float(item.get("traffic_down_mb", 0.0))
-                    else:
-                        continue
                     
-                    obj.status = item.get("status", obj.status)
+                    obj.status = item.get("status", "ACTIVE")
                     temp_inv.add_device(obj)
 
                 st.session_state.inv = temp_inv
-                st.session_state.editing_device = None
-                st.success("Backup restaurado!")
+                st.success("Inventário e Ligações restaurados!")
                 st.rerun()
-            except Exception as e:
-                st.error(f"Falha no processamento: {e}")
+            except Exception as e: st.error(f"Erro no Upload: {e}")
 
 st.title("Sistema de Gestão de Rede")
 
 # ==================================================
-# DEFINIÇÃO DOS SEPARADORES (TABS)
+# TABS
 # ==================================================
-tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs([
-    "Gestão", 
-    "Consultas", 
-    "Trafego e Politicas",
-    "Ligacoes"
-])
+tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs(["Gestão", "Consultas", "Tráfego", "Ligações"])
 
-# --- 1. TAB GESTÃO ---
+# --- 1. TAB GESTÃO (EDIÇÃO COM PRESERVAÇÃO DE DADOS) ---
 with tab_gestao:
     col_add, col_list = st.columns([1, 2])
-    
     is_editing = st.session_state.editing_device is not None
     dev_edit = st.session_state.editing_device
 
     with col_add:
-        st.subheader("Editar Dispositivo" if is_editing else "Novo Dispositivo")
+        st.subheader("Editar" if is_editing else "Novo")
+        tipo = st.selectbox("Tipo", ["ROUTER", "SWITCH", "AP", "ENDPOINT"], 
+                            index=["ROUTER", "SWITCH", "AP", "ENDPOINT"].index(dev_edit.device_type) if is_editing else 0,
+                            disabled=is_editing)
         
-        lista_tipos = ["ROUTER", "SWITCH", "AP", "ENDPOINT"]
-        tipo_idx = lista_tipos.index(dev_edit.device_type) if is_editing else 0
-        tipo = st.selectbox("Tipo", lista_tipos, index=tipo_idx, disabled=is_editing)
-        
-        nome = st.text_input("Nome Unico", value=dev_edit.name if is_editing else "").strip()
+        nome = st.text_input("Nome Único", value=dev_edit.name if is_editing else "").strip()
         modelo = st.text_input("Modelo", value=dev_edit.model if is_editing else "")
-        
-        # Interface Serial no formulário
-        opcoes_sn = ["Não", "Sim"]
-        default_sn = 1 if getattr(dev_edit, 'serial_interface', False) else 0
-        serial_sel = st.selectbox("Possui Interface Serial?", opcoes_sn, index=default_sn)
-        serial_bool = (serial_sel == "Sim")
-        
-        obs = st.text_area("Observacoes", value=dev_edit.observations if is_editing else "")
+        ser_sel = st.selectbox("Interface Serial?", ["Não", "Sim"], index=1 if getattr(dev_edit, 'serial_interface', False) else 0)
+        ser_bool = (ser_sel == "Sim")
+        obs = st.text_area("Observações", value=dev_edit.observations if is_editing else "")
+
+        # Funções auxiliares para não perder dados ao clicar em "Atualizar"
+        def process_update(new_obj):
+            if is_editing:
+                # REPASSAR LIGAÇÕES DO ANTIGO PARA O NOVO
+                if hasattr(dev_edit, "connected_devices"): new_obj.connected_devices = dev_edit.connected_devices
+                if hasattr(dev_edit, "connected_endpoints"): new_obj.connected_endpoints = dev_edit.connected_endpoints
+                # REPASSAR TRÁFEGO SE FOR ENDPOINT
+                if isinstance(new_obj, Endpoint):
+                    new_obj.traffic_up_mb = dev_edit.traffic_up_mb
+                    new_obj.traffic_down_mb = dev_edit.traffic_down_mb
+                inv.remove_device(dev_edit.name)
+            inv.add_device(new_obj)
+            st.session_state.editing_device = None
+            st.rerun()
 
         if tipo == "ROUTER":
             ipv4 = st.text_input("IPv4 (Opcional)", value=getattr(dev_edit, 'ipv4', "") if is_editing else "")
-            mac = st.text_input("MAC (Router)", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
-            
-            if st.button("Atualizar Router" if is_editing else "Adicionar Router"):
-                try:
-                    if is_editing: inv.remove_device(dev_edit.name)
-                    inv.add_device(Router(nome, ipv4, "", mac, model=modelo, serial_interface=serial_bool, observations=obs))
-                    st.session_state.editing_device = None
-                    st.rerun()
-                except ValueError as e: st.error(e)
+            mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
+            if st.button("Confirmar Router"):
+                process_update(Router(nome, ipv4, "", mac, modelo, ser_bool, obs))
 
         elif tipo == "SWITCH":
-            p_total = getattr(dev_edit, 'ports', 24) if is_editing else 24
-            p_giga = getattr(dev_edit, 'giga_eth_ports', 0) if is_editing else 0
-            p_fast = getattr(dev_edit, 'fast_eth_ports', p_total) if is_editing else 24
-
-            total_p = st.number_input("Portas", 1, 48, int(p_total))
-            giga_p = st.slider("Gigabit", 0, total_p, int(p_giga))
-            fast_p = st.slider("FastEthernet", 0, total_p - giga_p, int(min(p_fast, total_p - giga_p)))
-            eth_p = total_p - giga_p - fast_p
-            st.info(f"Ethernet restantes: {eth_p}")
+            total_p = st.number_input("Portas", 1, 48, int(getattr(dev_edit, 'ports', 24)))
+            giga_p = st.slider("Gigabit", 0, total_p, int(getattr(dev_edit, 'giga_eth_ports', 0)))
+            fast_p = st.slider("Fast", 0, total_p - giga_p, int(getattr(dev_edit, 'fast_eth_ports', total_p - giga_p)))
             mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
-            
-            if st.button("Atualizar Switch" if is_editing else "Adicionar Switch"):
-                try:
-                    if is_editing: inv.remove_device(dev_edit.name)
-                    inv.add_device(Switch(nome, "", mac, total_p, eth_p, fast_p, giga_p, 
-                                          model=modelo, serial_interface=serial_bool, observations=obs))
-                    st.session_state.editing_device = None
-                    st.rerun()
-                except ValueError as e: st.error(e)
+            if st.button("Confirmar Switch"):
+                process_update(Switch(nome, "", mac, total_p, total_p-giga_p-fast_p, fast_p, giga_p, modelo, ser_bool, obs))
 
         elif tipo == "AP":
             ssid = st.text_input("SSID", value=getattr(dev_edit, 'ssid', "") if is_editing else "")
-            if st.button("Atualizar AP" if is_editing else "Adicionar AP"):
-                try:
-                    if is_editing: inv.remove_device(dev_edit.name)
-                    inv.add_device(AccessPoint(nome, ssid, model=modelo, serial_interface=serial_bool, observations=obs))
-                    st.session_state.editing_device = None
-                    st.rerun()
-                except ValueError as e: st.error(e)
+            if st.button("Confirmar AP"):
+                process_update(AccessPoint(nome, ssid, modelo, ser_bool, obs))
 
         elif tipo == "ENDPOINT":
             uid = st.text_input("User ID", value=getattr(dev_edit, 'user_id', "") if is_editing else "")
             ipv4 = st.text_input("IPv4", value=getattr(dev_edit, 'ipv4', "") if is_editing else "")
             mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
-            if st.button("Atualizar Endpoint" if is_editing else "Adicionar Endpoint"):
-                try:
-                    if is_editing: inv.remove_device(dev_edit.name)
-                    inv.add_device(Endpoint(nome, uid, ipv4, "", mac, model=modelo, serial_interface=serial_bool, observations=obs))
-                    st.session_state.editing_device = None
-                    st.rerun()
-                except ValueError as e: st.error(e)
+            if st.button("Confirmar Endpoint"):
+                process_update(Endpoint(nome, uid, ipv4, "", mac, modelo, ser_bool, obs))
 
-        if is_editing:
-            if st.button("Cancelar Edicao", use_container_width=True):
-                st.session_state.editing_device = None
-                st.rerun()
+        if is_editing and st.button("Cancelar"):
+            st.session_state.editing_device = None
+            st.rerun()
 
     with col_list:
-        st.subheader("Lista de Inventario")
-        devices = inv.list_devices()
-        if not devices:
-            st.info("Inventario vazio.")
-        else:
-            for d in devices:
-                with st.expander(f"{d.name} ({d.device_type}) - {d.status}"):
-                    if hasattr(d, "model") and d.model: st.write(f"**Modelo:** {d.model}")
-                    ser_txt = "Sim" if getattr(d, "serial_interface", False) else "Não"
-                    st.write(f"**Interface Serial:** {ser_txt}")
-                    
-                    st.text(str(d))
-                    if hasattr(d, "observations") and d.observations: st.warning(f"Notas: {d.observations}")
-                    
-                    c_ed, c_el = st.columns(2)
-                    if c_ed.button("Editar", key=f"edit_b_{d.name}"):
-                        st.session_state.editing_device = d
-                        st.rerun()
-                    if c_el.button("Eliminar", key=f"del_b_{d.name}"):
-                        inv.remove_device(d.name)
-                        st.rerun()
-
-            st.divider()
-            if st.button("NUKE - Eliminar Todo o Inventario", type="primary", use_container_width=True):
-                for d in list(inv.list_devices()):
+        st.subheader("Lista")
+        for d in inv.list_devices():
+            with st.expander(f"{d.name} ({d.device_type})"):
+                st.write(f"Modelo: {d.model} | Serial: {'Sim' if d.serial_interface else 'Não'}")
+                st.text(str(d))
+                c1, c2 = st.columns(2)
+                if c1.button("Editar", key=f"ed_{d.name}"):
+                    st.session_state.editing_device = d
+                    st.rerun()
+                if c2.button("Eliminar", key=f"el_{d.name}"):
                     inv.remove_device(d.name)
-                st.session_state.editing_device = None
-                st.rerun()
+                    st.rerun()
+        if st.button("NUKE", type="primary", use_container_width=True):
+            for d in list(inv.list_devices()): inv.remove_device(d.name)
+            st.rerun()
 
 # --- 2. TAB CONSULTAS ---
 with tab_consultas:
-    st.subheader("Ferramentas de Pesquisa")
-    c1, c2, c3, c4 = st.columns(4) 
-    
+    st.subheader("Pesquisa")
+    c1, c2 = st.columns(2)
     with c1:
-        st.markdown("**Por Modelo**")
-        search_m = st.text_input("Procurar Modelo")
+        search_m = st.text_input("Modelo")
         if st.button("Filtrar Modelo"):
-            results = [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]
-            if not results: st.warning("Nenhum modelo encontrado.")
-            for r in results: st.text(str(r))
-
+            for r in [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]: st.text(str(r))
     with c2:
-        st.markdown("**Por Interface Serial**")
-        # NOVO DROPDOWN DE PESQUISA
-        search_ser = st.selectbox("Filtrar por Serial?", ["Não", "Sim"], key="search_ser_dropdown")
-        if st.button("Listar Resultados"):
-            wanted_bool = (search_ser == "Sim")
-            results = [d for d in inv.list_devices() if getattr(d, 'serial_interface', False) == wanted_bool]
-            if not results: 
-                st.info(f"Nenhum dispositivo com Interface Serial '{search_ser}' encontrado.")
-            for r in results: 
-                st.text(str(r))
+        search_ser = st.selectbox("Interface Serial?", ["Não", "Sim"], key="q_ser")
+        if st.button("Filtrar Serial"):
+            for r in [d for d in inv.list_devices() if d.serial_interface == (search_ser == "Sim")]: st.text(str(r))
 
-    with c3:
-        st.markdown("**Por Estado**")
-        search_s = st.selectbox("Estado", ["ACTIVE", "INACTIVE"], key="status_filter")
-        if st.button("Filtrar Estado"):
-            results = inv.find_by_status(search_s)
-            for r in results: st.text(str(r))
-                
-    with c4:
-        st.markdown("**Conectividade**")
-        if st.button("Listar Conectados"):
-            results = [d for d in inv.list_devices() if len(getattr(d, "connected_devices", [])) > 0 or len(getattr(d, "connected_endpoints", [])) > 0]
-            if not results: st.info("Sem ligações ativas.")
-            for r in results: st.write(f"Ligado: {r.name} ({r.device_type})")
+# --- 3. TAB TRÁFEGO ---
+with tab_trafego:
+    eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
+    if not eps: st.info("Sem Endpoints.")
+    else:
+        target = st.selectbox("Dispositivo", [e.name for e in eps])
+        ep_obj = inv.get_endpoint(target)
+        up = st.number_input("Upload (MB)", value=ep_obj.traffic_up_mb)
+        down = st.number_input("Download (MB)", value=ep_obj.traffic_down_mb)
+        if st.button("Atualizar Tráfego"):
+            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down
+            st.rerun()
+        st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
+
+# --- 4. TAB LIGAÇÕES ---
+with tab_ligacoes:
+    hosts = [d for d in inv.list_devices() if hasattr(d, "connected_devices") or hasattr(d, "connected_endpoints")]
+    if not hosts: st.info("Sem Routers/Switches/APs.")
+    else:
+        h_name = st.selectbox("Anfitrião", [h.name for h in hosts])
+        h_obj = inv.devices.get(h_name)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            others = [d.name for d in inv.list_devices() if d.name != h_name]
+            target = st.selectbox("Ligar a", others)
+            if st.button("Ligar"):
+                try:
+                    if hasattr(h_obj, "connect_device"): h_obj.connect_device(target)
+                    else: h_obj.connect_endpoint(target)
+                    st.rerun()
+                except Exception as e: st.error(e)
+        with c2:
+            cons = getattr(h_obj, "connected_devices", []) or getattr(h_obj, "connected_endpoints", [])
+            for c in cons:
+                if st.button(f"Desligar {c}", key=f"dis_{h_name}_{c}"):
+                    if hasattr(h_obj, "disconnect_device"): h_obj.disconnect_device(c)
+                    else: h_obj.disconnect_endpoint(c)
+                    st.rerun()
