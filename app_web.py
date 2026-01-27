@@ -43,7 +43,6 @@ with st.sidebar:
     
     st.divider()
     
-    # --- DOWNLOAD LOCAL ---
     st.subheader("Download Local")
     inventory_data = [d.to_dict() for d in inv.list_devices()]
     json_string = json.dumps(inventory_data, indent=2, ensure_ascii=False)
@@ -57,7 +56,6 @@ with st.sidebar:
 
     st.divider()
 
-    # --- UPLOAD LOCAL ---
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"])
 
@@ -71,7 +69,8 @@ with st.sidebar:
                     t = item.get("type")
                     obs = item.get("observations", "")
                     mod = item.get("model", "")
-                    ser_int = item.get("serial_interface", False) # Recupera booleano
+                    # Lê serial_interface como booleano
+                    ser_int = item.get("serial_interface", False)
 
                     if t == "ROUTER":
                         obj = Router(item["name"], item.get("ipv4", ""), "", item["mac_address"], 
@@ -129,10 +128,10 @@ with tab_gestao:
         nome = st.text_input("Nome Unico", value=dev_edit.name if is_editing else "").strip()
         modelo = st.text_input("Modelo", value=dev_edit.model if is_editing else "")
         
-        # DROPDOWN PARA INTERFACE SERIAL (Substitui o antigo Serial Number)
-        opcoes_serial = ["Não", "Sim"]
-        default_idx = 1 if getattr(dev_edit, 'serial_interface', False) else 0
-        serial_sel = st.selectbox("Possui Interface Serial?", opcoes_serial, index=default_idx)
+        # Interface Serial no formulário
+        opcoes_sn = ["Não", "Sim"]
+        default_sn = 1 if getattr(dev_edit, 'serial_interface', False) else 0
+        serial_sel = st.selectbox("Possui Interface Serial?", opcoes_sn, index=default_sn)
         serial_bool = (serial_sel == "Sim")
         
         obs = st.text_area("Observacoes", value=dev_edit.observations if is_editing else "")
@@ -141,8 +140,7 @@ with tab_gestao:
             ipv4 = st.text_input("IPv4 (Opcional)", value=getattr(dev_edit, 'ipv4', "") if is_editing else "")
             mac = st.text_input("MAC (Router)", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
             
-            label_btn = "Atualizar Router" if is_editing else "Adicionar Router"
-            if st.button(label_btn):
+            if st.button("Atualizar Router" if is_editing else "Adicionar Router"):
                 try:
                     if is_editing: inv.remove_device(dev_edit.name)
                     inv.add_device(Router(nome, ipv4, "", mac, model=modelo, serial_interface=serial_bool, observations=obs))
@@ -162,8 +160,7 @@ with tab_gestao:
             st.info(f"Ethernet restantes: {eth_p}")
             mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
             
-            label_btn = "Atualizar Switch" if is_editing else "Adicionar Switch"
-            if st.button(label_btn):
+            if st.button("Atualizar Switch" if is_editing else "Adicionar Switch"):
                 try:
                     if is_editing: inv.remove_device(dev_edit.name)
                     inv.add_device(Switch(nome, "", mac, total_p, eth_p, fast_p, giga_p, 
@@ -174,8 +171,7 @@ with tab_gestao:
 
         elif tipo == "AP":
             ssid = st.text_input("SSID", value=getattr(dev_edit, 'ssid', "") if is_editing else "")
-            label_btn = "Atualizar AP" if is_editing else "Adicionar AP"
-            if st.button(label_btn):
+            if st.button("Atualizar AP" if is_editing else "Adicionar AP"):
                 try:
                     if is_editing: inv.remove_device(dev_edit.name)
                     inv.add_device(AccessPoint(nome, ssid, model=modelo, serial_interface=serial_bool, observations=obs))
@@ -187,8 +183,7 @@ with tab_gestao:
             uid = st.text_input("User ID", value=getattr(dev_edit, 'user_id', "") if is_editing else "")
             ipv4 = st.text_input("IPv4", value=getattr(dev_edit, 'ipv4', "") if is_editing else "")
             mac = st.text_input("MAC", value=getattr(dev_edit, 'mac_address', "") if is_editing else "")
-            label_btn = "Atualizar Endpoint" if is_editing else "Adicionar Endpoint"
-            if st.button(label_btn):
+            if st.button("Atualizar Endpoint" if is_editing else "Adicionar Endpoint"):
                 try:
                     if is_editing: inv.remove_device(dev_edit.name)
                     inv.add_device(Endpoint(nome, uid, ipv4, "", mac, model=modelo, serial_interface=serial_bool, observations=obs))
@@ -241,18 +236,24 @@ with tab_consultas:
         search_m = st.text_input("Procurar Modelo")
         if st.button("Filtrar Modelo"):
             results = [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]
+            if not results: st.warning("Nenhum modelo encontrado.")
             for r in results: st.text(str(r))
 
     with c2:
-        st.markdown("**Filtro Especial**")
-        if st.button("Listar com Interface Serial"):
-            results = [d for d in inv.list_devices() if getattr(d, 'serial_interface', False)]
-            if not results: st.info("Nenhum dispositivo encontrado.")
-            for r in results: st.text(str(r))
+        st.markdown("**Por Interface Serial**")
+        # NOVO DROPDOWN DE PESQUISA
+        search_ser = st.selectbox("Filtrar por Serial?", ["Não", "Sim"], key="search_ser_dropdown")
+        if st.button("Listar Resultados"):
+            wanted_bool = (search_ser == "Sim")
+            results = [d for d in inv.list_devices() if getattr(d, 'serial_interface', False) == wanted_bool]
+            if not results: 
+                st.info(f"Nenhum dispositivo com Interface Serial '{search_ser}' encontrado.")
+            for r in results: 
+                st.text(str(r))
 
     with c3:
         st.markdown("**Por Estado**")
-        search_s = st.selectbox("Estado", ["ACTIVE", "INACTIVE"])
+        search_s = st.selectbox("Estado", ["ACTIVE", "INACTIVE"], key="status_filter")
         if st.button("Filtrar Estado"):
             results = inv.find_by_status(search_s)
             for r in results: st.text(str(r))
@@ -260,5 +261,6 @@ with tab_consultas:
     with c4:
         st.markdown("**Conectividade**")
         if st.button("Listar Conectados"):
-            results = [d for d in inv.list_devices() if len(getattr(d, "connected_devices", [])) > 0]
-            for r in results: st.write(f"{r.name} ({r.device_type})")
+            results = [d for d in inv.list_devices() if len(getattr(d, "connected_devices", [])) > 0 or len(getattr(d, "connected_endpoints", [])) > 0]
+            if not results: st.info("Sem ligações ativas.")
+            for r in results: st.write(f"Ligado: {r.name} ({r.device_type})")
