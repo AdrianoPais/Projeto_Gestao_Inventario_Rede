@@ -101,7 +101,7 @@ with tab_gestao:
     dev_edit = st.session_state.editing_device
 
     with col_add:
-        st.subheader("Editar" if is_editing else "Novo Dispositivo")
+        st.subheader("Editar Dispositivo" if is_editing else "Novo Dispositivo")
         
         lista_tipos = ["ROUTER", "SWITCH", "AP", "ENDPOINT"]
         tipo_idx = lista_tipos.index(dev_edit.device_type) if is_editing else 0
@@ -163,10 +163,10 @@ with tab_gestao:
                 st.write(f"Modelo: {d.model} | Serial Interface: {'Sim' if d.serial_interface else 'Não'}")
                 st.text(str(d))
                 c1, c2 = st.columns(2)
-                if c1.button("Editar", key=f"ed_{d.name}"):
+                if c1.button("Editar Dispositivo", key=f"ed_{d.name}"):
                     st.session_state.editing_device = d
                     st.rerun()
-                if c2.button("Eliminar", key=f"el_{d.name}"):
+                if c2.button("Eliminar Dispositivo", key=f"el_{d.name}"):
                     inv.remove_device(d.name)
                     st.rerun()
         
