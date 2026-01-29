@@ -174,7 +174,7 @@ with st.sidebar:
             rk = getattr(d, 'rack', 1)
             cond = getattr(d, 'condition', 'Funcional')
             txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}] (Bastidor {rk})")
-            txt_lines.append(f"Saúde: {cond} | Modelo: {d.model}")
+            txt_lines.append(f"Estado: {cond} | Modelo: {d.model}")
             txt_lines.append(f"Dados Técnicos: {str(d)}")
             txt_lines.append(f"Obs: {d.observations if d.observations else 'N/A'}")
             txt_lines.append("-" * 30 + "\n")
