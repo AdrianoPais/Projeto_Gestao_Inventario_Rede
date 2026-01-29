@@ -200,6 +200,7 @@ with tab_gestao:
     acao_btn = "Atualizar" if is_editing else "Adicionar"
 
     with col_add:
+        # ... (O código do formulário mantém-se exatamente igual ao que já tens) ...
         st.subheader("Editar Dispositivo" if is_editing else "Novo Dispositivo")
         lista_tipos = ["ROUTER", "SWITCH", "AP", "ENDPOINT"]
         tipo = st.selectbox("Tipo", lista_tipos, disabled=is_editing, key="add_tipo_select")
@@ -218,32 +219,29 @@ with tab_gestao:
                     new_obj.traffic_up_mb = dev_edit.traffic_up_mb
                     new_obj.traffic_down_mb = dev_edit.traffic_down_mb
                 inv.remove_device(dev_edit.name)
-            
             inv.add_device(new_obj)
             st.session_state.editing_device = None
             limpar_form()
             st.rerun()
 
+        # ... (Restante lógica de botões de confirmação para Router, Switch, etc.) ...
         if tipo == "ROUTER":
             ipv4 = st.text_input("Endereço IPv4 (Opcional)", key="add_ip_router")
             mac = st.text_input("MAC", key="add_mac_router")
             if st.button(f"{acao_btn} Router", key="btn_confirm_router"):
                 process_update(Router(nome, ipv4, "", mac, modelo, ser_bool, obs))
-
         elif tipo == "SWITCH":
             ports_val = st.session_state.get('add_ports_sw', 24)
             total_p = st.number_input("Portas", 1, 48, int(ports_val), key="add_ports_sw")
-            giga_p = st.slider("Gigabit Ethernet Ports", 0, total_p, 0, key="add_giga_sw")
-            fast_p = st.slider("Fast Ethernet Ports", 0, total_p, 0, key="add_fast_sw")
+            giga_p = st.slider("Gigabit Ethernet Ports", 0, total_p, key="add_giga_sw")
+            fast_p = st.slider("Fast Ethernet Ports", 0, total_p, key="add_fast_sw")
             mac = st.text_input("MAC Address", key="add_mac_sw")
             if st.button(f"{acao_btn} Switch", key="btn_confirm_sw"):
                 process_update(Switch(nome, "", mac, total_p, total_p-giga_p-fast_p, fast_p, giga_p, modelo, ser_bool, obs))
-
         elif tipo == "AP":
             ssid = st.text_input("SSID", key="add_ssid_ap")
             if st.button(f"{acao_btn} AP", key="btn_confirm_ap"):
                 process_update(AccessPoint(nome, ssid, modelo, ser_bool, obs))
-
         elif tipo == "ENDPOINT":
             uid = st.text_input("User ID", key="add_uid_ep")
             ipv4 = st.text_input("Endereço IPv4", key="add_ip_ep")
@@ -254,21 +252,49 @@ with tab_gestao:
         if is_editing:
             st.button("Cancelar", key="btn_cancel_edit", on_click=click_cancelar)
 
+    # --- AQUI ESTÁ A MUDANÇA: col_list com Sub-tabs ---
     with col_list:
         st.subheader("Lista do Inventário")
-        for d in inv.list_devices():
-            with st.expander(f"{d.name} ({d.device_type})"):
-                mac_val = getattr(d, 'mac_address', '-')
-                st.write(f"**MAC:** {mac_val} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
-                st.info(f"**Obs.:** {d.observations if d.observations else 'Sem observações.'}")
-                st.text(str(d))
-                c1, c2 = st.columns(2)
-                
-                c1.button("Editar Dispositivo", key=f"ed_{d.name}", on_click=click_editar, args=(d,))
-                
-                if c2.button("Eliminar Dispositivo", key=f"el_{d.name}"):
-                    inv.remove_device(d.name)
-                    st.rerun()
+        
+        # Criação das sub-tabs
+        st_routers, st_switches, st_outros, st_todos = st.tabs([
+            "Routers", "Switches", "Outros (AP/EP)", "Todos"
+        ])
+
+        devices = inv.list_devices()
+
+        def render_lista(lista_filtrada):
+            if not lista_filtrada:
+                st.info("Nenhum dispositivo encontrado nesta categoria.")
+                return
+            for d in lista_filtrada:
+                with st.expander(f"{d.name} ({d.device_type})"):
+                    mac_val = getattr(d, 'mac_address', '-')
+                    st.write(f"**MAC:** {mac_val} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
+                    st.info(f"**Obs.:** {d.observations if d.observations else 'Sem observações.'}")
+                    st.text(str(d))
+                    
+                    c1, c2 = st.columns(2)
+                    c1.button("Editar", key=f"ed_{d.name}", on_click=click_editar, args=(d,))
+                    if c2.button("Eliminar", key=f"el_{d.name}"):
+                        inv.remove_device(d.name)
+                        st.rerun()
+
+        # Preenchimento de cada tab com filtros
+        with st_routers:
+            lista = [d for d in devices if d.device_type == "ROUTER"]
+            render_lista(lista)
+
+        with st_switches:
+            lista = [d for d in devices if d.device_type == "SWITCH"]
+            render_lista(lista)
+
+        with st_outros:
+            lista = [d for d in devices if d.device_type in ["AP", "ENDPOINT"]]
+            render_lista(lista)
+
+        with st_todos:
+            render_lista(devices)
         
         st.divider()
         if st.button("NUKE - Limpar Tudo", type="primary", use_container_width=True, key="btn_nuke_all"):
@@ -276,7 +302,7 @@ with tab_gestao:
             st.session_state.editing_device = None
             limpar_form()
             st.rerun()
-
+            
 # --- 2. TAB CONSULTAS ---
 with tab_consultas:
     st.subheader("Filtros de Pesquisa")
