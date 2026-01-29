@@ -145,7 +145,7 @@ with st.sidebar:
             txt_lines.append("-" * 30 + "\n")
         
         st.download_button(
-            label="📝 Download Relatório TXT",
+            label="📝 Download TXT",
             data="\n".join(txt_lines),
             file_name="relatorio_rede.txt",
             mime="text/plain",
