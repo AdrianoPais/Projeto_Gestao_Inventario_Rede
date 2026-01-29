@@ -145,7 +145,6 @@ with st.sidebar:
             data=csv_data,
             file_name="inventario.csv",
             mime="text/csv",
-            use_container_width=True,
             key="btn_csv"
         )
 
