@@ -125,24 +125,23 @@ with st.sidebar:
     
     if lista_dicts:
         df = pd.DataFrame(lista_dicts)
-        c_left, c_right = st.columns(2)
-        with c_left:
-            st.download_button("📄 JSON", data=json.dumps(lista_dicts, indent=2), file_name="inventario.json", key="btn_json")
-            try:
-                pdf_data = gerar_pdf(inv.list_devices())
-                st.download_button("📕 PDF", data=pdf_data, file_name="inventario_oficial.pdf", key="btn_pdf")
-            except: st.error("Erro PDF")
-        with c_right:
-            buf = BytesIO()
-            with pd.ExcelWriter(buf, engine='openpyxl') as wr:
-                df.to_excel(wr, index=False, sheet_name='Dispositivos')
-            st.download_button("📗 Excel", data=buf.getvalue(), file_name="inventario.xlsx", key="btn_excel")
-            
-            txt_lines = [f"RELATÓRIO - {datetime.now().strftime('%d/%m/%Y')}\n", "="*30 + "\n"]
-            for d in inv.list_devices():
-                txt_lines.append(f"{d.name} [{d.device_type}] (Bastidor {getattr(d, 'rack', 1)})")
-                txt_lines.append(f"Dados: {str(d)}\n" + "-"*20 + "\n")
-            st.download_button("📝 TXT", data="\n".join(txt_lines), file_name="relatorio.txt", key="btn_txt")
+        
+        # Colunas de exportação
+        c_exp1, c_exp2 = st.columns(2)
+        c_exp1.download_button("📄 JSON", data=json.dumps(lista_dicts, indent=2), file_name="inventario.json", key="btn_json")
+        c_exp2.download_button("📊 CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="inventario.csv", key="btn_csv")
+        
+        buffer_xls = BytesIO()
+        with pd.ExcelWriter(buffer_xls, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        st.download_button("📗 Excel (.xlsx)", data=buffer_xls.getvalue(), file_name="inventario.xlsx", key="btn_excel")
+        
+        # PDF e TXT
+        pdf_data = gerar_pdf(inv.list_devices())
+        st.download_button("📕 PDF Oficial", data=pdf_data, file_name="inventario_rede.pdf", key="btn_pdf")
+        
+        txt_content = "\n".join([str(d) for d in inv.list_devices()])
+        st.download_button("📝 TXT Simples", data=txt_content, file_name="inventario.txt", key="btn_txt")
 
     st.divider()
     st.subheader("Upload Local")
