@@ -102,7 +102,7 @@ def click_cancelar():
     limpar_form()
 
 # ==================================================
-# SIDEBAR: GESTÃO E EXPORTAÇÕES (FORMATO EM LINHA)
+# SIDEBAR: GESTÃO E EXPORTAÇÕES (LINHA A LINHA)
 # ==================================================
 
 with st.sidebar:
@@ -134,6 +134,7 @@ with st.sidebar:
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
             file_name="inventario.json", 
             mime="application/json",
+            use_container_width=True,
             key="btn_json"
         )
 
@@ -144,6 +145,7 @@ with st.sidebar:
             data=csv_data,
             file_name="inventario.csv",
             mime="text/csv",
+            use_container_width=True,
             key="btn_csv"
         )
 
@@ -157,10 +159,11 @@ with st.sidebar:
             data=buffer.getvalue(),
             file_name="inventario.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
             key="btn_excel"
         )
 
-        # 4. DOWNLOAD PDF (NOVA LINHA)
+        # 4. DOWNLOAD PDF
         try:
             pdf_data = gerar_pdf(inv.list_devices())
             st.download_button(
@@ -168,13 +171,14 @@ with st.sidebar:
                 data=pdf_data,
                 file_name="relatorio_oficial.pdf",
                 mime="application/pdf",
+                use_container_width=True,
                 key="btn_pdf"
             )
         except:
             st.sidebar.error("Erro ao gerar PDF")
 
         # 5. DOWNLOAD TXT
-        txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
+        txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {datetime.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
         for d in inv.list_devices():
             rk = getattr(d, 'rack', 1)
             cond = getattr(d, 'condition', 'Funcional')
@@ -189,6 +193,7 @@ with st.sidebar:
             data="\n".join(txt_lines),
             file_name="relatorio_rede.txt",
             mime="text/plain",
+            use_container_width=True,
             key="btn_txt"
         )
 
@@ -226,7 +231,8 @@ st.title("Sistema de Gestão de Rede")
 
 st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
-Esta aplicação está alojada no servidor da Streamlit e não possui controlo de acesso individual (UAC). Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
+Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
+Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
 
 Contamos com a colaboração de todos para manter o inventário correto!
 """)
@@ -289,12 +295,16 @@ with tab_gestao:
             if not lista: st.info("Vazio.")
             for d in lista:
                 cond, rk = getattr(d, 'condition', 'Funcional'), getattr(d, 'rack', 1)
+                ser_int = "Sim" if getattr(d, 'serial_interface', False) else "Não"
+                mac_val = getattr(d, 'mac_address', 'N/A')
+                ip_val = getattr(d, 'ipv4', 'N/A')
+                
                 header = f"{d.name} | Bastidor {rk}"
                 if cond == "Avariado": header += " 🔴"
                 elif cond == "Com Defeito": header += " 🟠"
                 with st.expander(header):
                     st.write(f"**Saúde:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
-                    st.write(f"**Serial:** {'Sim' if getattr(d, 'serial_interface', False) else 'Não'} | **MAC:** {getattr(d, 'mac_address', 'N/A')} | **IP:** {getattr(d, 'ipv4', 'N/A')}")
+                    st.write(f"**Serial:** {ser_int} | **MAC:** {mac_val} | **IP:** {ip_val}")
                     st.info(f"**OBS.:** {d.observations if d.observations else 'Sem observações.'}")
                     c1, c2 = st.columns(2)
                     c1.button("Editar", key=f"{prefix}_ed_{d.name}", on_click=click_editar, args=(d,))
@@ -338,21 +348,37 @@ with tab_consultas:
                 st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
                 st.info(f"**OBS.:** {r_res.observations if r_res.observations else 'N/A'}")
 
-# --- TABS TRÁFEGO E LIGAÇÕES ---
+# --- 3. TAB TRÁFEGO (CORRIGIDA) ---
 with tab_trafego:
+    # Filtra dispositivos do tipo Endpoint
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
-    if eps:
-        target = st.selectbox("Endpoint", [e.name for e in eps], key="traffic_target_select")
+    
+    if not eps: 
+        # Mostra mensagem em azul se não existirem Endpoints
+        st.info("Adicione Endpoints na Gestão para monitorizar o tráfego.")
+    else:
+        # Se existirem, mostra o formulário de atualização e o gráfico
+        target = st.selectbox("Escolher Endpoint", [e.name for e in eps], key="traffic_target_select")
         ep_obj = inv.get_endpoint(target)
-        up = st.number_input("Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
-        down = st.number_input("Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
+        up = st.number_input("Novo Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
+        down = st.number_input("Novo Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
+        
         if st.button("Atualizar Consumo"):
-            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down; st.rerun()
+            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down
+            st.success(f"Dados de {target} atualizados!")
+            st.rerun()
+            
+        st.divider()
+        st.subheader("Visualização de Consumo Total")
+        # Gera o gráfico de barras
         st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
 
+# --- 4. TAB LIGAÇÕES ---
 with tab_ligacoes:
     hosts = [d for d in inv.list_devices() if hasattr(d, "connected_devices") or hasattr(d, "connected_endpoints")]
-    if hosts:
+    if not hosts:
+        st.info("Crie Routers ou Switches para estabelecer ligações.")
+    else:
         h_name = st.selectbox("Equipamento Base", [h.name for h in hosts], key="host_link_select")
         h_obj = inv.devices.get(h_name)
         c1, c2 = st.columns(2)
