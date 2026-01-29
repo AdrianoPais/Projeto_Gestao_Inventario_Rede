@@ -160,7 +160,7 @@ with st.sidebar:
         try:
             pdf_data = gerar_pdf(inv.list_devices())
             st.download_button(
-                label="📕 PDF Oficial",
+                label="📕 Download PDF",
                 data=pdf_data,
                 file_name="relatorio_oficial.pdf",
                 mime="application/pdf",
