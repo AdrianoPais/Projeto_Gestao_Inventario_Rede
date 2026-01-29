@@ -15,7 +15,8 @@ INACTIVE = "INACTIVE"
 class Device:
     def __init__(self, name: str, device_type: str, model: str = "", 
                  serial_interface: bool = False, observations: str = "", 
-                 condition: str = "Funcional", defect_description: str = ""):
+                 condition: str = "Funcional", defect_description: str = "",
+                 rack: int = 1): # NOVO: Localização física
         # Remove espaços e valida o nome
         name = (name or "").strip()
         if not name:
@@ -26,6 +27,7 @@ class Device:
         self.device_type = device_type
         self.model = (model or "").strip()
         self.serial_interface = serial_interface
+        self.rack = rack # Bastidor (1 a 6)
         
         # Novos campos de estado físico
         self.condition = condition  # "Funcional", "Com Defeito" ou "Avariado"
@@ -48,13 +50,14 @@ class Device:
             "serial_interface": self.serial_interface,
             "condition": self.condition,
             "defect_description": self.defect_description,
+            "rack": self.rack, # Exportar localização
             "status": self.status,
             "observations": self.observations,
         }
 
     def __str__(self):
         ser_text = "Sim" if self.serial_interface else "Não"
-        return f"[{self.device_type}] name={self.name} model={self.model or '-'} cond={self.condition} status={self.status}"
+        return f"[{self.device_type}] {self.name} (Mod: {self.model or '-'}) [Bastidor {self.rack}] cond={self.condition} status={self.status}"
 
 
 # --------------------------------------------------
@@ -64,11 +67,11 @@ class Device:
 class Router(Device):
     def __init__(self, name: str, ipv4: str, ipv6: str, mac_address: str, 
                  model: str = "", serial_interface: bool = False, observations: str = "",
-                 condition: str = "Funcional", defect_description: str = ""):
+                 condition: str = "Funcional", defect_description: str = "", rack: int = 1):
         
         super().__init__(name=name, device_type="ROUTER", model=model, 
                          serial_interface=serial_interface, observations=observations,
-                         condition=condition, defect_description=defect_description)
+                         condition=condition, defect_description=defect_description, rack=rack)
 
         ipv4 = (ipv4 or "").strip()
         if ipv4 and (not is_valid_ipv4(ipv4)):
@@ -106,11 +109,11 @@ class Switch(Device):
     def __init__(self, name: str, ipv4: str, mac_address: str, ports: int, 
                  eth_ports: int = 0, fast_eth_ports: int = 0, giga_eth_ports: int = 0,
                  model: str = "", serial_interface: bool = False, observations: str = "",
-                 condition: str = "Funcional", defect_description: str = ""):
+                 condition: str = "Funcional", defect_description: str = "", rack: int = 1):
         
         super().__init__(name=name, device_type="SWITCH", model=model, 
                          serial_interface=serial_interface, observations=observations,
-                         condition=condition, defect_description=defect_description)
+                         condition=condition, defect_description=defect_description, rack=rack)
 
         ipv4 = (ipv4 or "").strip()
         if ipv4 and (not is_valid_ipv4(ipv4)):
@@ -152,11 +155,12 @@ class Switch(Device):
 
 class AccessPoint(Device):
     def __init__(self, name: str, ssid: str, model: str = "", serial_interface: bool = False, 
-                 observations: str = "", condition: str = "Funcional", defect_description: str = ""):
+                 observations: str = "", condition: str = "Funcional", 
+                 defect_description: str = "", rack: int = 1):
         
         super().__init__(name=name, device_type="AP", model=model, 
                          serial_interface=serial_interface, observations=observations,
-                         condition=condition, defect_description=defect_description)
+                         condition=condition, defect_description=defect_description, rack=rack)
 
         ssid = (ssid or "").strip()
         if not ssid:
@@ -180,11 +184,11 @@ class AccessPoint(Device):
 class Endpoint(Device):
     def __init__(self, name: str, user_id: str, ipv4: str, ipv6: str, mac_address: str, 
                  model: str = "", serial_interface: bool = False, observations: str = "",
-                 condition: str = "Funcional", defect_description: str = ""):
+                 condition: str = "Funcional", defect_description: str = "", rack: int = 1):
         
         super().__init__(name=name, device_type="ENDPOINT", model=model, 
                          serial_interface=serial_interface, observations=observations,
-                         condition=condition, defect_description=defect_description)
+                         condition=condition, defect_description=defect_description, rack=rack)
 
         user_id = (user_id or "").strip()
         if not user_id:
