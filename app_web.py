@@ -139,7 +139,7 @@ with st.sidebar:
         st.download_button(label="📗 Download Excel", data=buffer.getvalue(), file_name="inventario.xlsx", key="btn_excel")
 
         pdf_data = gerar_pdf(inv.list_devices())
-        st.download_button(label="📕 Download PDF Oficial", data=pdf_data, file_name="relatorio_rede.pdf", key="btn_pdf")
+        st.download_button(label="📕 Download PDF", data=pdf_data, file_name="relatorio_rede.pdf", key="btn_pdf")
 
     st.divider()
     if st.checkbox("Ver Logs de Atividade"):
