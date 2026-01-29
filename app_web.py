@@ -189,7 +189,6 @@ with st.sidebar:
             data="\n".join(txt_lines),
             file_name="relatorio_rede.txt",
             mime="text/plain",
-            use_container_width=True,
             key="btn_txt"
         )
 
