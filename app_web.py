@@ -123,29 +123,67 @@ with st.sidebar:
     st.subheader("Exportar Inventário")
     lista_dicts = [d.to_dict() for d in inv.list_devices()]
     
-    if lista_dicts:
+    if not lista_dicts:
+        st.warning("Inventário vazio.")
+    else:
         df = pd.DataFrame(lista_dicts)
+
+        # 1. DOWNLOAD JSON
+        st.download_button(
+            label="📄 Download JSON", 
+            data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
+            file_name="inventario.json", 
+            mime="application/json",
+            key="btn_json"
+        )
+
+        # 2. DOWNLOAD CSV
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📊 Download CSV",
+            data=csv_data,
+            file_name="inventario.csv",
+            mime="text/csv",
+            key="btn_csv"
+        )
+
+        # 3. DOWNLOAD EXCEL
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Dispositivos')
         
-        # Colunas de exportação
-        c_exp1, c_exp2 = st.columns(2)
-        c_exp1.download_button("📄 JSON", data=json.dumps(lista_dicts, indent=2), file_name="inventario.json", key="btn_json")
-        c_exp2.download_button("📊 CSV", data=df.to_csv(index=False).encode('utf-8'), file_name="inventario.csv", key="btn_csv")
+        st.download_button(
+            label="📗 Download Excel",
+            data=buffer.getvalue(),
+            file_name="inventario.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_excel"
+        )
+
+        # 4. DOWNLOAD TXT (Relatório Detalhado)
+        txt_lines = [f"RELATÓRIO DE INVENTÁRIO DE REDE - {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
+        for d in inv.list_devices():
+            cond = getattr(d, 'condition', 'Funcional')
+            def_desc = getattr(d, 'defect_description', '')
+            txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}]")
+            txt_lines.append(f"Modelo: {d.model} | Saúde: {cond}")
+            if def_desc: txt_lines.append(f"Defeito: {def_desc}")
+            txt_lines.append(f"Dados Técnicos: {str(d)}")
+            txt_lines.append(f"Observações: {d.observations if d.observations else 'N/A'}")
+            txt_lines.append("-" * 30 + "\n")
         
-        buffer_xls = BytesIO()
-        with pd.ExcelWriter(buffer_xls, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False)
-        st.download_button("📗 Excel (.xlsx)", data=buffer_xls.getvalue(), file_name="inventario.xlsx", key="btn_excel")
-        
-        # PDF e TXT
-        pdf_data = gerar_pdf(inv.list_devices())
-        st.download_button("📕 PDF Oficial", data=pdf_data, file_name="inventario_rede.pdf", key="btn_pdf")
-        
-        txt_content = "\n".join([str(d) for d in inv.list_devices()])
-        st.download_button("📝 TXT Simples", data=txt_content, file_name="inventario.txt", key="btn_txt")
+        st.download_button(
+            label="📝 Download TXT",
+            data="\n".join(txt_lines),
+            file_name="relatorio_rede.txt",
+            mime="text/plain",
+            key="btn_txt"
+        )
 
     st.divider()
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
+    
     if uploaded_file is not None:
         if st.button("Restaurar Backup", use_container_width=True, key="btn_restore_upload"):
             try:
