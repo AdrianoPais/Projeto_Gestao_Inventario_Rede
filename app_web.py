@@ -176,8 +176,13 @@ st.title("Sistema de Gestão de Rede")
 
 st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
-Esta aplicação não possui controlo de acesso (UAC). Solicitamos que **não alterem ou eliminem** dispositivos sem confirmação dos **Administradores**.
+
+Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
+Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
+
+Contamos com a colaboração de todos para manter o inventário correto!
 """)
+# ---------------------------------------
 
 # ==================================================
 # TABS PRINCIPAIS
