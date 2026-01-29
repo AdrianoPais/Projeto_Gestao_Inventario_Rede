@@ -102,18 +102,18 @@ def click_cancelar():
     limpar_form()
 
 # ==================================================
-# SIDEBAR: GESTÃO E EXPORTAÇÕES (EM ESCADA)
+# SIDEBAR: GESTÃO E EXPORTAÇÕES (FORMATO EM LINHA)
 # ==================================================
 
 with st.sidebar:
     st.title("Gestão de Dados")
     
-    if st.button("Guardar no Servidor", key="btn_save_srv"):
+    if st.button("Guardar no Servidor", use_container_width=True, key="btn_save_srv"):
         save_to_json(inv, "inventario.json")
         log_event("Guardado manual no servidor.")
         st.success("Dados guardados.")
     
-    if st.button("Recarregar do Ficheiro", key="btn_reload_srv"):
+    if st.button("Recarregar do Ficheiro", use_container_width=True, key="btn_reload_srv"):
         st.session_state.inv = load_from_json("inventario.json")
         st.session_state.editing_device = None
         limpar_form()
@@ -134,6 +134,7 @@ with st.sidebar:
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
             file_name="inventario.json", 
             mime="application/json",
+            use_container_width=True,
             key="btn_json"
         )
 
@@ -144,6 +145,7 @@ with st.sidebar:
             data=csv_data,
             file_name="inventario.csv",
             mime="text/csv",
+            use_container_width=True,
             key="btn_csv"
         )
 
@@ -157,19 +159,33 @@ with st.sidebar:
             data=buffer.getvalue(),
             file_name="inventario.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
             key="btn_excel"
         )
 
-        # 4. DOWNLOAD TXT (Relatório Detalhado)
-        txt_lines = [f"RELATÓRIO DE INVENTÁRIO DE REDE - {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
+        # 4. DOWNLOAD PDF (NOVA LINHA)
+        try:
+            pdf_data = gerar_pdf(inv.list_devices())
+            st.download_button(
+                label="📕 PDF Oficial",
+                data=pdf_data,
+                file_name="relatorio_oficial.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="btn_pdf"
+            )
+        except:
+            st.sidebar.error("Erro ao gerar PDF")
+
+        # 5. DOWNLOAD TXT
+        txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
         for d in inv.list_devices():
+            rk = getattr(d, 'rack', 1)
             cond = getattr(d, 'condition', 'Funcional')
-            def_desc = getattr(d, 'defect_description', '')
-            txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}]")
-            txt_lines.append(f"Modelo: {d.model} | Saúde: {cond}")
-            if def_desc: txt_lines.append(f"Defeito: {def_desc}")
+            txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}] (Bastidor {rk})")
+            txt_lines.append(f"Saúde: {cond} | Modelo: {d.model}")
             txt_lines.append(f"Dados Técnicos: {str(d)}")
-            txt_lines.append(f"Observações: {d.observations if d.observations else 'N/A'}")
+            txt_lines.append(f"Obs: {d.observations if d.observations else 'N/A'}")
             txt_lines.append("-" * 30 + "\n")
         
         st.download_button(
@@ -177,6 +193,7 @@ with st.sidebar:
             data="\n".join(txt_lines),
             file_name="relatorio_rede.txt",
             mime="text/plain",
+            use_container_width=True,
             key="btn_txt"
         )
 
@@ -214,13 +231,10 @@ st.title("Sistema de Gestão de Rede")
 
 st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
-
-Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
-Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
+Esta aplicação está alojada no servidor da Streamlit e não possui controlo de acesso individual (UAC). Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
 
 Contamos com a colaboração de todos para manter o inventário correto!
 """)
-# ---------------------------------------
 
 # ==================================================
 # TABS PRINCIPAIS
@@ -251,8 +265,7 @@ with tab_gestao:
             else: log_event(f"CRIADO: {nome} no Bastidor {rack}")
             inv.add_device(new_obj)
             st.session_state.editing_device = None
-            limpar_form()
-            st.rerun()
+            limpar_form(); st.rerun()
 
         common = {"model": modelo, "serial_interface": (ser_sel == "Sim"), "observations": obs, "condition": saude, "defect_description": defeito_desc, "rack": rack}
         if tipo == "ROUTER":
@@ -302,23 +315,19 @@ with tab_gestao:
 
 with tab_consultas:
     st.subheader("Pesquisa Avançada")
-    
-    # Linha 1 de Filtros
     r1_c1, r1_c2, r1_c3 = st.columns(3)
     with r1_c1: search_n = st.text_input("Filtrar por Nome", key="q_n")
     with r1_c2: search_t = st.selectbox("Filtrar por Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="q_t")
     with r1_c3: search_rk = st.selectbox("Filtrar por Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
 
-    # Linha 2 de Filtros
     r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
     with r2_c1: search_cond = st.selectbox("Filtrar por Saúde", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
     with r2_c2: search_ser = st.selectbox("Interface Serial?", ["Todos", "Sim", "Não"], key="q_ser")
     with r2_c3: search_mac = st.text_input("Filtrar por MAC", key="q_mac")
     with r2_c4: search_ip = st.text_input("Filtrar por IP", key="q_ip")
 
-    if st.button("Executar Pesquisa"):
+    if st.button("Executar Pesquisa", use_container_width=True):
         res = inv.list_devices()
-        # Aplicação sequencial de filtros
         if search_n: res = [d for d in res if search_n.lower() in d.name.lower()]
         if search_t != "Todos": res = [d for d in res if d.device_type == search_t]
         if search_rk != "Todos": res = [d for d in res if getattr(d, 'rack', 1) == search_rk]
@@ -327,9 +336,8 @@ with tab_consultas:
         if search_mac: res = [d for d in res if search_mac.lower() in getattr(d, 'mac_address', '').lower()]
         if search_ip: res = [d for d in res if search_ip in getattr(d, 'ipv4', '')]
 
-        if not res: st.warning("Nenhum dispositivo encontrado com estes critérios.")
+        if not res: st.warning("Nenhum dispositivo encontrado.")
         for r_res in res:
-            # Mostra o resultado com o mesmo estilo visual rico da Gestão
             with st.expander(f"{r_res.name} | Bastidor {getattr(r_res, 'rack', 1)}"):
                 st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {getattr(r_res, 'condition', 'Funcional')} | **Modelo:** {r_res.model}")
                 st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
