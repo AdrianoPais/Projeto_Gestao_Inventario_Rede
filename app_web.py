@@ -49,6 +49,8 @@ def carregar_dados_para_form(device):
     st.session_state['add_modelo_input'] = device.model
     st.session_state['add_serial_select'] = "Sim" if device.serial_interface else "Não"
     st.session_state['add_obs_input'] = device.observations
+    
+    # Proteção para dados antigos na edição
     st.session_state['add_saude_select'] = getattr(device, 'condition', 'Funcional')
     st.session_state['add_defeito_input'] = getattr(device, 'defect_description', '')
 
@@ -112,6 +114,7 @@ with st.sidebar:
                 for item in data:
                     t, mod, obs = item.get("type"), item.get("model", ""), item.get("observations", "")
                     ser_int = item.get("serial_interface", False)
+                    # Recuperação segura para Upload
                     cond = item.get("condition", "Funcional")
                     def_desc = item.get("defect_description", "")
 
@@ -137,6 +140,7 @@ with st.sidebar:
                 st.session_state.inv = temp_inv
                 st.session_state.editing_device = None
                 limpar_form()
+                st.success("Backup restaurado!")
                 st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
 
@@ -161,13 +165,14 @@ with tab_gestao:
         modelo = st.text_input("Modelo", key="add_modelo_input")
         ser_sel = st.selectbox("Interface Serial?", ["Não", "Sim"], key="add_serial_select")
         
-        # --- NOVO: LÓGICA DE ESTADO DE CONSERVAÇÃO ---
+        # Dropdown de Saúde
         saude_opcoes = ["Funcional", "Com Defeito", "Avariado"]
         saude = st.selectbox("Estado de Conservação", saude_opcoes, key="add_saude_select")
         
+        # Campo de Defeito Condicional
         defeito_desc = ""
         if saude == "Com Defeito":
-            defeito_desc = st.text_input("Descreva o Defeito", key="add_defeito_input", placeholder="Ex: Porta 1-4 em curto")
+            defeito_desc = st.text_input("Descreva o Defeito", key="add_defeito_input", placeholder="Ex: Porta 5 não liga")
         
         obs = st.text_area("Observações Gerais", key="add_obs_input")
 
@@ -183,7 +188,14 @@ with tab_gestao:
             limpar_form()
             st.rerun()
 
-        params = {"model": modelo, "serial_interface": (ser_sel == "Sim"), "observations": obs, "condition": saude, "defect_description": defeito_desc}
+        # Parâmetros comuns para os construtores
+        params = {
+            "model": modelo, 
+            "serial_interface": (ser_sel == "Sim"), 
+            "observations": obs, 
+            "condition": saude, 
+            "defect_description": defeito_desc
+        }
 
         if tipo == "ROUTER":
             ipv4, mac = st.text_input("IPv4", key="add_ip_router"), st.text_input("MAC", key="add_mac_router")
@@ -210,16 +222,22 @@ with tab_gestao:
         st_routers, st_switches, st_outros, st_todos = st.tabs([f"Routers ({len(r)})", f"Switches ({len(s)})", f"Outros ({len(o)})", f"Todos ({len(devices)})"])
 
         def render_lista(lista, prefix):
-            if not lista: st.info("Vazio.")
+            if not lista: 
+                st.info("Vazio.")
+                return
             for d in lista:
-                # Cor do header baseada na saúde
+                # PROTEÇÃO CONTRA DADOS ANTIGOS COM GETATTR
+                cond_atual = getattr(d, 'condition', 'Funcional')
                 header = f"{d.name} ({d.device_type})"
-                if d.condition == "Avariado": header += " 🔴 AVARIADO"
-                elif d.condition == "Com Defeito": header += " 🟠 COM DEFEITO"
+                if cond_atual == "Avariado": header += " 🔴 AVARIADO"
+                elif cond_atual == "Com Defeito": header += " 🟠 COM DEFEITO"
 
                 with st.expander(header):
-                    st.write(f"**Saúde:** {d.condition} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
-                    if d.defect_description: st.warning(f"**Defeito:** {d.defect_description}")
+                    st.write(f"**Saúde:** {cond_atual} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
+                    
+                    def_desc = getattr(d, 'defect_description', '')
+                    if def_desc: st.warning(f"**Defeito:** {def_desc}")
+                    
                     st.info(f"**Obs.:** {d.observations if d.observations else 'N/A'}")
                     st.text(str(d))
                     c1, c2 = st.columns(2)
@@ -234,7 +252,7 @@ with tab_gestao:
         with st_todos: render_lista(devices, "t")
         
         st.divider()
-        if st.button("NUKE - Limpar Tudo", type="primary", use_container_width=True):
+        if st.button("NUKE - Limpar Tudo", type="primary", use_container_width=True, key="btn_nuke_all"):
             for d in list(inv.list_devices()): inv.remove_device(d.name)
             st.session_state.editing_device = None
             limpar_form()
@@ -275,7 +293,7 @@ with tab_consultas:
         if st.button("Pesquisar IP"):
             for r in [d for d in inv.list_devices() if getattr(d, 'ipv4', '') == search_ip]: st.text(str(r))
 
-# --- TABS TRÁFEGO E LIGAÇÕES (MANTER FUNCIONAIS) ---
+# --- TABS TRÁFEGO E LIGAÇÕES ---
 with tab_trafego:
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
     if eps:
