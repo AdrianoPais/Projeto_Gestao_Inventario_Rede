@@ -291,7 +291,7 @@ with tab_gestao:
                 else: header += " 🟢" # Ícone Verde para Funcional
                 
                 with st.expander(header):
-                    st.write(f"**Saúde:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
+                    st.write(f"**Estado:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
                     st.write(f"**Serial:** {'Sim' if getattr(d, 'serial_interface', False) else 'Não'} | **MAC:** {getattr(d, 'mac_address', 'N/A')} | **IP:** {getattr(d, 'ipv4', 'N/A')}")
                     st.info(f"**OBS.:** {d.observations if d.observations else 'Sem observações.'}")
                     c1, c2 = st.columns(2)
@@ -318,7 +318,7 @@ with tab_consultas:
     with r1_c3: search_rk = st.selectbox("Filtrar por Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
 
     r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-    with r2_c1: search_cond = st.selectbox("Filtrar por Saúde", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
+    with r2_c1: search_cond = st.selectbox("Filtrar por Estado", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
     with r2_c2: search_ser = st.selectbox("Interface Serial?", ["Todos", "Sim", "Não"], key="q_ser")
     with r2_c3: search_mac = st.text_input("Filtrar por MAC", key="q_mac")
     with r2_c4: search_ip = st.text_input("Filtrar por IP", key="q_ip")
@@ -343,7 +343,7 @@ with tab_consultas:
             else: header_q += " 🟢"
 
             with st.expander(header_q):
-                st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {c_saude} | **Modelo:** {r_res.model}")
+                st.write(f"**Tipo:** {r_res.device_type} | **Estado:** {c_saude} | **Modelo:** {r_res.model}")
                 st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
                 st.info(f"**OBS.:** {r_res.observations if r_res.observations else 'N/A'}")
 
