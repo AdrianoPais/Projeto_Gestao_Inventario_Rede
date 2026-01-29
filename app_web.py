@@ -25,7 +25,7 @@ if 'editing_device' not in st.session_state:
     st.session_state.editing_device = None
 
 # ==================================================
-# FUNÇÕES AUXILIARES DE FORMULÁRIO (A MAGIA ESTÁ AQUI)
+# FUNÇÕES AUXILIARES DE FORMULÁRIO
 # ==================================================
 
 def limpar_form():
@@ -43,17 +43,12 @@ def limpar_form():
             del st.session_state[k]
 
 def carregar_dados_para_form(device):
-    """
-    Força os dados do dispositivo para dentro dos inputs do Streamlit via Session State.
-    """
-    # 1. Dados Comuns
     st.session_state['add_tipo_select'] = device.device_type
     st.session_state['add_nome_input'] = device.name
     st.session_state['add_modelo_input'] = device.model
     st.session_state['add_serial_select'] = "Sim" if device.serial_interface else "Não"
     st.session_state['add_obs_input'] = device.observations
 
-    # 2. Dados Específicos por Tipo
     if device.device_type == "ROUTER":
         st.session_state['add_ip_router'] = getattr(device, 'ipv4', '')
         st.session_state['add_mac_router'] = getattr(device, 'mac_address', '')
@@ -73,15 +68,10 @@ def carregar_dados_para_form(device):
         st.session_state['add_mac_ep'] = getattr(device, 'mac_address', '')
 
 def click_editar(device):
-    """
-    Callback executado ANTES do script recarregar.
-    Define o dispositivo em edição e preenche o formulário.
-    """
     st.session_state.editing_device = device
     carregar_dados_para_form(device)
 
 def click_cancelar():
-    """Callback para cancelar a edição."""
     st.session_state.editing_device = None
     limpar_form()
 
@@ -91,7 +81,6 @@ def click_cancelar():
 with st.sidebar:
     st.title("Gestão de Dados")
     
-    # --- BOTÕES DE SERVIDOR (MANTER IGUAL) ---
     if st.button("Guardar no Servidor", key="btn_save_srv"):
         save_to_json(inv, "inventario.json")
         st.success("Dados guardados.")
@@ -105,16 +94,13 @@ with st.sidebar:
     st.divider()
     st.subheader("Exportar Dados")
 
-    # Prepara os dados uma única vez
     lista_dicts = [d.to_dict() for d in inv.list_devices()]
     
     if not lista_dicts:
         st.warning("Inventário vazio.")
     else:
-        # Cria um DataFrame do Pandas (Tabela inteligente)
         df = pd.DataFrame(lista_dicts)
 
-        # 1. DOWNLOAD JSON (O que já tinha)
         st.download_button(
             label="📄 Download JSON", 
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
@@ -123,8 +109,6 @@ with st.sidebar:
             key="btn_json"
         )
 
-        # 2. DOWNLOAD CSV
-        # Converte a tabela para CSV
         csv_data = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📊 Download CSV",
@@ -134,8 +118,6 @@ with st.sidebar:
             key="btn_csv"
         )
 
-        # 3. DOWNLOAD EXCEL (Requer openpyxl)
-        # O Excel é binário, precisa de um buffer (BytesIO)
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Dispositivos')
@@ -148,8 +130,6 @@ with st.sidebar:
             key="btn_excel"
         )
 
-        # 4. DOWNLOAD TXT (Relatório legível)
-        # Cria um texto formatado linha a linha
         txt_lines = []
         for d in inv.list_devices():
             txt_lines.append(f"--- {d.name} ---")
@@ -166,7 +146,6 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Upload Local")
-    # ... (MANTENHA O RESTO DO CÓDIGO DE UPLOAD IGUAL) ...
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
 
     if uploaded_file is not None:
@@ -218,32 +197,23 @@ with tab_gestao:
     col_add, col_list = st.columns([1, 2])
     is_editing = st.session_state.editing_device is not None
     dev_edit = st.session_state.editing_device
-    
-    # Texto dinâmico do botão
     acao_btn = "Atualizar" if is_editing else "Adicionar"
 
     with col_add:
         st.subheader("Editar Dispositivo" if is_editing else "Novo Dispositivo")
-        
-        # Tipo de dispositivo
         lista_tipos = ["ROUTER", "SWITCH", "AP", "ENDPOINT"]
-        # Nota: O index aqui é controlado pelo session_state['add_tipo_select'] se ele existir
         tipo = st.selectbox("Tipo", lista_tipos, disabled=is_editing, key="add_tipo_select")
         
-        # Campos Comuns
         nome = st.text_input("Nome Único", key="add_nome_input").strip()
         modelo = st.text_input("Modelo", key="add_modelo_input")
         ser_sel = st.selectbox("Interface Serial?", ["Não", "Sim"], key="add_serial_select")
         ser_bool = (ser_sel == "Sim")
         obs = st.text_area("Observações", key="add_obs_input")
 
-        # Função interna de guardar/atualizar
         def process_update(new_obj):
             if is_editing:
-                # Mantém conexões antigas
                 if hasattr(dev_edit, "connected_devices"): new_obj.connected_devices = dev_edit.connected_devices
                 if hasattr(dev_edit, "connected_endpoints"): new_obj.connected_endpoints = dev_edit.connected_endpoints
-                # Mantém tráfego se for Endpoint
                 if isinstance(new_obj, Endpoint):
                     new_obj.traffic_up_mb = dev_edit.traffic_up_mb
                     new_obj.traffic_down_mb = dev_edit.traffic_down_mb
@@ -251,35 +221,26 @@ with tab_gestao:
             
             inv.add_device(new_obj)
             st.session_state.editing_device = None
-            limpar_form() # Limpa o form para o próximo uso
+            limpar_form()
             st.rerun()
 
-        # Campos Específicos
         if tipo == "ROUTER":
             ipv4 = st.text_input("Endereço IPv4 (Opcional)", key="add_ip_router")
             mac = st.text_input("MAC", key="add_mac_router")
-            
             if st.button(f"{acao_btn} Router", key="btn_confirm_router"):
                 process_update(Router(nome, ipv4, "", mac, modelo, ser_bool, obs))
 
         elif tipo == "SWITCH":
-            # Nota: usamos st.empty() ou lógica simples para garantir valores padrão se vazio
             ports_val = st.session_state.get('add_ports_sw', 24)
             total_p = st.number_input("Portas", 1, 48, int(ports_val), key="add_ports_sw")
-            
             giga_p = st.slider("Gigabit Ethernet Ports", 0, total_p, 0, key="add_giga_sw")
-            
-            # O slider Fast Ethernet depende do total e giga. O valor inicial deve vir do state se existir
             fast_p = st.slider("Fast Ethernet Ports", 0, total_p, 0, key="add_fast_sw")
-            
             mac = st.text_input("MAC Address", key="add_mac_sw")
-            
             if st.button(f"{acao_btn} Switch", key="btn_confirm_sw"):
                 process_update(Switch(nome, "", mac, total_p, total_p-giga_p-fast_p, fast_p, giga_p, modelo, ser_bool, obs))
 
         elif tipo == "AP":
             ssid = st.text_input("SSID", key="add_ssid_ap")
-            
             if st.button(f"{acao_btn} AP", key="btn_confirm_ap"):
                 process_update(AccessPoint(nome, ssid, modelo, ser_bool, obs))
 
@@ -287,11 +248,9 @@ with tab_gestao:
             uid = st.text_input("User ID", key="add_uid_ep")
             ipv4 = st.text_input("Endereço IPv4", key="add_ip_ep")
             mac = st.text_input("MAC Address", key="add_mac_ep")
-            
             if st.button(f"{acao_btn} Endpoint", key="btn_confirm_ep"):
                 process_update(Endpoint(nome, uid, ipv4, "", mac, modelo, ser_bool, obs))
 
-        # Botão Cancelar (agora usa callback para ser mais seguro)
         if is_editing:
             st.button("Cancelar", key="btn_cancel_edit", on_click=click_cancelar)
 
@@ -299,28 +258,13 @@ with tab_gestao:
         st.subheader("Lista do Inventário")
         for d in inv.list_devices():
             with st.expander(f"{d.name} ({d.device_type})"):
-                
-                # Info Técnica + MAC
                 mac_val = getattr(d, 'mac_address', '-')
                 st.write(f"**MAC:** {mac_val} | **Modelo:** {d.model} | **Serial:** {'Sim' if d.serial_interface else 'Não'}")
-                
-                # Observações
                 st.info(f"**Obs.:** {d.observations if d.observations else 'Sem observações.'}")
-                
-                # Raw info (opcional)
                 st.text(str(d))
-                
                 c1, c2 = st.columns(2)
                 
-                # === BOTÃO EDITAR CORRIGIDO COM CALLBACK ===
-                # O argumento 'on_click' garante que o estado é atualizado ANTES
-                # de o Streamlit tentar desenhar o formulário novamente.
-                c1.button("Editar Dispositivo", 
-                          key=f"ed_{d.name}", 
-                          on_click=click_editar, 
-                          args=(d,)
-                )
-                # ===========================================
+                c1.button("Editar Dispositivo", key=f"ed_{d.name}", on_click=click_editar, args=(d,))
                 
                 if c2.button("Eliminar Dispositivo", key=f"el_{d.name}"):
                     inv.remove_device(d.name)
@@ -333,11 +277,22 @@ with tab_gestao:
             limpar_form()
             st.rerun()
 
-# --- 2. TAB CONSULTAS (Filtros Atualizados) ---
+# --- 2. TAB CONSULTAS ---
 with tab_consultas:
     st.subheader("Filtros de Pesquisa")
     
-    # Primeira Linha de Filtros
+    # Pesquisa Principal por Nome
+    search_n = st.text_input("Procurar por Nome do Dispositivo", key="query_nome_search")
+    if st.button("Filtrar por Nome", key="btn_filter_name"):
+        results = [d for d in inv.list_devices() if search_n.lower() in d.name.lower()]
+        if results:
+            for r in results: st.text(str(r))
+        else:
+            st.warning(f"Nenhum dispositivo com o nome '{search_n}' encontrado.")
+    
+    st.divider()
+
+    # Outros Filtros
     r1_c1, r1_c2, r1_c3 = st.columns(3)
     with r1_c1:
         search_m = st.text_input("Filtrar por Modelo", key="query_modelo")
@@ -366,7 +321,6 @@ with tab_consultas:
 
     st.divider()
     
-    # Segunda Linha de Filtros
     r2_c1, r2_c2 = st.columns(2)
     with r2_c1:
         search_s = st.selectbox("Estado do Dispositivo", ["Ativo", "Inativo"], key="query_status")
@@ -380,7 +334,6 @@ with tab_consultas:
     with r2_c2:
         search_ip = st.text_input("Pesquisar por IP (IPv4)", key="query_ip")
         if st.button("Pesquisar IP", key="btn_filter_ip"):
-            # Procura em routers e endpoints que têm atributo ipv4
             results = [d for d in inv.list_devices() if getattr(d, 'ipv4', '') == search_ip]
             if results:
                 for r in results: st.text(str(r))
