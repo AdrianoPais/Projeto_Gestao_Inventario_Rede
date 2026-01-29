@@ -133,12 +133,12 @@ with st.sidebar:
         buf = BytesIO()
         with pd.ExcelWriter(buf, engine='openpyxl') as wr:
             df.to_excel(wr, index=False, sheet_name='Dispositivos')
-        c_exp[0].download_button("📗 Excel", data=buf.getvalue(), file_name="inventario.xlsx", key="btn_excel")
+        c_exp[0].download_button("📗 Download Excel", data=buf.getvalue(), file_name="inventario.xlsx", key="btn_excel")
         
         # Gera PDF (Tenta importar, se falhar avisa)
         try:
             pdf_data = gerar_pdf(inv.list_devices())
-            c_exp[1].download_button("📕 PDF Oficial", data=pdf_data, file_name="inventario_oficial.pdf", key="btn_pdf")
+            c_exp[1].download_button("📕 Download PDF", data=pdf_data, file_name="inventario_oficial.pdf", key="btn_pdf")
         except Exception as e:
             c_exp[1].error("Erro PDF")
 
@@ -153,7 +153,7 @@ with st.sidebar:
             txt_lines.append(f"Obs: {d.observations if d.observations else 'N/A'}")
             txt_lines.append("-" * 30 + "\n")
         
-        st.download_button("📝 Relatório TXT", data="\n".join(txt_lines), file_name="relatorio_rede.txt", key="btn_txt")
+        st.download_button("📝 Download TXT", data="\n".join(txt_lines), file_name="relatorio_rede.txt", key="btn_txt")
 
     st.divider()
     
