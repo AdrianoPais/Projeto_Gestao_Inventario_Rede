@@ -13,7 +13,9 @@ INACTIVE = "INACTIVE"
 # --------------------------------------------------
 
 class Device:
-    def __init__(self, name: str, device_type: str, model: str = "", serial_interface: bool = False, observations: str = ""):
+    def __init__(self, name: str, device_type: str, model: str = "", 
+                 serial_interface: bool = False, observations: str = "", 
+                 condition: str = "Funcional", defect_description: str = ""):
         # Remove espaços e valida o nome
         name = (name or "").strip()
         if not name:
@@ -23,9 +25,11 @@ class Device:
         self.name = name
         self.device_type = device_type
         self.model = (model or "").strip()
-        
-        # Campo booleano para identificar presença de interfaces seriais
         self.serial_interface = serial_interface
+        
+        # Novos campos de estado físico
+        self.condition = condition  # "Funcional", "Com Defeito" ou "Avariado"
+        self.defect_description = (defect_description or "").strip()
         
         self.status = ACTIVE
         self.observations = (observations or "").strip()
@@ -41,14 +45,16 @@ class Device:
             "type": self.device_type,
             "name": self.name,
             "model": self.model,
-            "serial_interface": self.serial_interface, # Guardado como True/False
+            "serial_interface": self.serial_interface,
+            "condition": self.condition,
+            "defect_description": self.defect_description,
             "status": self.status,
             "observations": self.observations,
         }
 
     def __str__(self):
         ser_text = "Sim" if self.serial_interface else "Não"
-        return f"[{self.device_type}] name={self.name} model={self.model or '-'} serial_int={ser_text} status={self.status}"
+        return f"[{self.device_type}] name={self.name} model={self.model or '-'} cond={self.condition} status={self.status}"
 
 
 # --------------------------------------------------
@@ -56,10 +62,14 @@ class Device:
 # --------------------------------------------------
 
 class Router(Device):
-    def __init__(self, name: str, ipv4: str, ipv6: str, mac_address: str, model: str = "", serial_interface: bool = False, observations: str = ""):
-        super().__init__(name=name, device_type="ROUTER", model=model, serial_interface=serial_interface, observations=observations)
+    def __init__(self, name: str, ipv4: str, ipv6: str, mac_address: str, 
+                 model: str = "", serial_interface: bool = False, observations: str = "",
+                 condition: str = "Funcional", defect_description: str = ""):
+        
+        super().__init__(name=name, device_type="ROUTER", model=model, 
+                         serial_interface=serial_interface, observations=observations,
+                         condition=condition, defect_description=defect_description)
 
-        # IPv4 OPCIONAL: Valida apenas se preenchido
         ipv4 = (ipv4 or "").strip()
         if ipv4 and (not is_valid_ipv4(ipv4)):
             raise ValueError("IPv4 inválido no Router.")
@@ -76,19 +86,6 @@ class Router(Device):
         self.mac_address = mac_address
 
         self.connected_devices = []
-
-    def connect_device(self, device_name: str):
-        device_name = (device_name or "").strip()
-        if not device_name:
-            raise ValueError("Nome do dispositivo a ligar não pode ser vazio.")
-        if device_name in self.connected_devices:
-            raise ValueError("Esse dispositivo já está ligado ao Router.")
-        self.connected_devices.append(device_name)
-
-    def disconnect_device(self, device_name: str):
-        device_name = (device_name or "").strip()
-        if device_name in self.connected_devices:
-            self.connected_devices.remove(device_name)
 
     def to_dict(self) -> dict:
         d = super().to_dict()
@@ -108,8 +105,12 @@ class Router(Device):
 class Switch(Device):
     def __init__(self, name: str, ipv4: str, mac_address: str, ports: int, 
                  eth_ports: int = 0, fast_eth_ports: int = 0, giga_eth_ports: int = 0,
-                 model: str = "", serial_interface: bool = False, observations: str = ""):
-        super().__init__(name=name, device_type="SWITCH", model=model, serial_interface=serial_interface, observations=observations)
+                 model: str = "", serial_interface: bool = False, observations: str = "",
+                 condition: str = "Funcional", defect_description: str = ""):
+        
+        super().__init__(name=name, device_type="SWITCH", model=model, 
+                         serial_interface=serial_interface, observations=observations,
+                         condition=condition, defect_description=defect_description)
 
         ipv4 = (ipv4 or "").strip()
         if ipv4 and (not is_valid_ipv4(ipv4)):
@@ -131,21 +132,6 @@ class Switch(Device):
 
         self.connected_devices = []
 
-    def connect_device(self, device_name: str):
-        device_name = (device_name or "").strip()
-        if not device_name:
-            raise ValueError("Nome do dispositivo a ligar não pode ser vazio.")
-        if device_name in self.connected_devices:
-            raise ValueError("Esse dispositivo já está ligado ao Switch.")
-        if len(self.connected_devices) >= self.ports:
-            raise ValueError("Switch sem portas livres.")
-        self.connected_devices.append(device_name)
-
-    def disconnect_device(self, device_name: str):
-        device_name = (device_name or "").strip()
-        if device_name in self.connected_devices:
-            self.connected_devices.remove(device_name)
-
     def to_dict(self) -> dict:
         d = super().to_dict()
         d.update({
@@ -165,27 +151,18 @@ class Switch(Device):
 # --------------------------------------------------
 
 class AccessPoint(Device):
-    def __init__(self, name: str, ssid: str, model: str = "", serial_interface: bool = False, observations: str = ""):
-        super().__init__(name=name, device_type="AP", model=model, serial_interface=serial_interface, observations=observations)
+    def __init__(self, name: str, ssid: str, model: str = "", serial_interface: bool = False, 
+                 observations: str = "", condition: str = "Funcional", defect_description: str = ""):
+        
+        super().__init__(name=name, device_type="AP", model=model, 
+                         serial_interface=serial_interface, observations=observations,
+                         condition=condition, defect_description=defect_description)
 
         ssid = (ssid or "").strip()
         if not ssid:
             raise ValueError("ssid não pode ser vazio.")
         self.ssid = ssid
         self.connected_endpoints = []
-
-    def connect_endpoint(self, endpoint_name: str):
-        endpoint_name = (endpoint_name or "").strip()
-        if not endpoint_name:
-            raise ValueError("Nome do endpoint não pode ser vazio.")
-        if endpoint_name in self.connected_endpoints:
-            raise ValueError("Esse endpoint já está ligado ao AP.")
-        self.connected_endpoints.append(endpoint_name)
-
-    def disconnect_endpoint(self, endpoint_name: str):
-        endpoint_name = (endpoint_name or "").strip()
-        if endpoint_name in self.connected_endpoints:
-            self.connected_endpoints.remove(endpoint_name)
 
     def to_dict(self) -> dict:
         d = super().to_dict()
@@ -201,24 +178,23 @@ class AccessPoint(Device):
 # --------------------------------------------------
 
 class Endpoint(Device):
-    def __init__(self, name: str, user_id: str, ipv4: str, ipv6: str, mac_address: str, model: str = "", serial_interface: bool = False, observations: str = ""):
-        super().__init__(name=name, device_type="ENDPOINT", model=model, serial_interface=serial_interface, observations=observations)
+    def __init__(self, name: str, user_id: str, ipv4: str, ipv6: str, mac_address: str, 
+                 model: str = "", serial_interface: bool = False, observations: str = "",
+                 condition: str = "Funcional", defect_description: str = ""):
+        
+        super().__init__(name=name, device_type="ENDPOINT", model=model, 
+                         serial_interface=serial_interface, observations=observations,
+                         condition=condition, defect_description=defect_description)
 
         user_id = (user_id or "").strip()
         if not user_id:
             raise ValueError("user_id não pode ser vazio.")
         self.user_id = user_id
 
-        # IPv4 OPCIONAL
         ipv4 = (ipv4 or "").strip()
         if ipv4 and (not is_valid_ipv4(ipv4)):
             raise ValueError("IPv4 inválido no Endpoint.")
         self.ipv4 = ipv4
-
-        ipv6 = (ipv6 or "").strip()
-        if ipv6 and (not is_valid_ipv6(ipv6)):
-            raise ValueError("IPv6 inválido no Endpoint.")
-        self.ipv6 = ipv6
 
         mac_address = normalize_mac(mac_address)
         if not is_valid_mac(mac_address):
@@ -229,44 +205,14 @@ class Endpoint(Device):
         self.traffic_down_mb = 0.0
         self.suspended_until = None
 
-    def add_traffic(self, up_mb: float, down_mb: float):
-        if up_mb < 0 or down_mb < 0:
-            raise ValueError("Tráfego não pode ser negativo.")
-        self.traffic_up_mb += up_mb
-        self.traffic_down_mb += down_mb
-
-    def is_suspended(self) -> bool:
-        if self.suspended_until is None:
-            return False
-        return datetime.now() < self.suspended_until
-
-    def suspend_for_minutes(self, minutes: int):
-        if minutes <= 0:
-            raise ValueError("minutes tem de ser > 0.")
-        self.suspended_until = datetime.now() + timedelta(minutes=minutes)
-        self.status = INACTIVE
-
-    def refresh_status(self):
-        if self.suspended_until is not None and datetime.now() >= self.suspended_until:
-            self.suspended_until = None
-            self.status = ACTIVE
-
     def to_dict(self) -> dict:
         d = super().to_dict()
         d.update({
             "user_id": self.user_id,
             "ipv4": self.ipv4,
-            "ipv6": self.ipv6,
             "mac_address": self.mac_address,
             "traffic_up_mb": self.traffic_up_mb,
             "traffic_down_mb": self.traffic_down_mb,
             "suspended_until": self.suspended_until.isoformat() if self.suspended_until else None,
         })
         return d
-
-    def __str__(self):
-        self.refresh_status()
-        ser_text = "Sim" if self.serial_interface else "Não"
-        total = self.traffic_up_mb + self.traffic_down_mb
-        return (f"[ENDPOINT] name={self.name} model={self.model or '-'} serial_int={ser_text} "
-                f"status={self.status} total_traffic={total:.2f}MB")
