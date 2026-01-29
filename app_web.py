@@ -104,6 +104,7 @@ def click_cancelar():
 # ==================================================
 # SIDEBAR: GESTÃO E EXPORTAÇÕES (EM ESCADA)
 # ==================================================
+
 with st.sidebar:
     st.title("Gestão de Dados")
     
@@ -260,7 +261,8 @@ with tab_gestao:
         with t_o: render_lista(o, "o")
         with t_all: render_lista(devices, "t")
 
-# --- 2. TAB CONSULTAS (RESTALRADA COM TODOS OS FILTROS) ---
+# --- 2. TAB CONSULTAS ---
+
 with tab_consultas:
     st.subheader("Pesquisa Avançada")
     
