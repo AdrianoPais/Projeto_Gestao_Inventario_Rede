@@ -198,7 +198,7 @@ st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
 
 Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
-Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
+Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. Embora haja backups dos JSONs, prefiro não ter o trabalho! 
 
 Contamos com a colaboração de todos para manter o inventário correto!
 """)
