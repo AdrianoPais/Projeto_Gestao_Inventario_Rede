@@ -130,20 +130,6 @@ with st.sidebar:
             key="btn_excel"
         )
 
-        txt_lines = []
-        for d in inv.list_devices():
-            txt_lines.append(f"--- {d.name} ---")
-            txt_lines.append(str(d))
-            txt_lines.append(f"Obs: {d.observations}\n")
-        
-        st.download_button(
-            label="📝 Download TXT",
-            data="\n".join(txt_lines),
-            file_name="inventario.txt",
-            mime="text/plain",
-            key="btn_txt"
-        )
-
     st.divider()
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
@@ -188,7 +174,7 @@ with st.sidebar:
 st.title("Sistema de Gestão de Rede")
 
 # ==================================================
-# TABS
+# TABS PRINCIPAIS
 # ==================================================
 tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs(["Gestão", "Consultas", "Tráfego", "Ligações"])
 
@@ -200,7 +186,6 @@ with tab_gestao:
     acao_btn = "Atualizar" if is_editing else "Adicionar"
 
     with col_add:
-        # ... (O código do formulário mantém-se exatamente igual ao que já tens) ...
         st.subheader("Editar Dispositivo" if is_editing else "Novo Dispositivo")
         lista_tipos = ["ROUTER", "SWITCH", "AP", "ENDPOINT"]
         tipo = st.selectbox("Tipo", lista_tipos, disabled=is_editing, key="add_tipo_select")
@@ -219,29 +204,32 @@ with tab_gestao:
                     new_obj.traffic_up_mb = dev_edit.traffic_up_mb
                     new_obj.traffic_down_mb = dev_edit.traffic_down_mb
                 inv.remove_device(dev_edit.name)
+            
             inv.add_device(new_obj)
             st.session_state.editing_device = None
             limpar_form()
             st.rerun()
 
-        # ... (Restante lógica de botões de confirmação para Router, Switch, etc.) ...
         if tipo == "ROUTER":
             ipv4 = st.text_input("Endereço IPv4 (Opcional)", key="add_ip_router")
             mac = st.text_input("MAC", key="add_mac_router")
             if st.button(f"{acao_btn} Router", key="btn_confirm_router"):
                 process_update(Router(nome, ipv4, "", mac, modelo, ser_bool, obs))
+
         elif tipo == "SWITCH":
             ports_val = st.session_state.get('add_ports_sw', 24)
             total_p = st.number_input("Portas", 1, 48, int(ports_val), key="add_ports_sw")
             giga_p = st.slider("Gigabit Ethernet Ports", 0, total_p, key="add_giga_sw")
-            fast_p = st.slider("Fast Ethernet Ports", 0, total_p, key="add_fast_sw")
+            fast_p = st.slider("Fast Ethernet Ports", 0, total_p - giga_p, key="add_fast_sw")
             mac = st.text_input("MAC Address", key="add_mac_sw")
             if st.button(f"{acao_btn} Switch", key="btn_confirm_sw"):
                 process_update(Switch(nome, "", mac, total_p, total_p-giga_p-fast_p, fast_p, giga_p, modelo, ser_bool, obs))
+
         elif tipo == "AP":
             ssid = st.text_input("SSID", key="add_ssid_ap")
             if st.button(f"{acao_btn} AP", key="btn_confirm_ap"):
                 process_update(AccessPoint(nome, ssid, modelo, ser_bool, obs))
+
         elif tipo == "ENDPOINT":
             uid = st.text_input("User ID", key="add_uid_ep")
             ipv4 = st.text_input("Endereço IPv4", key="add_ip_ep")
@@ -252,20 +240,28 @@ with tab_gestao:
         if is_editing:
             st.button("Cancelar", key="btn_cancel_edit", on_click=click_cancelar)
 
-    # --- AQUI ESTÁ A MUDANÇA: col_list com Sub-tabs ---
     with col_list:
         st.subheader("Lista do Inventário")
         
-        # Criação das sub-tabs
+        devices = inv.list_devices()
+        
+        # Filtragem prévia para os contadores das tabs
+        routers = [d for d in devices if d.device_type == "ROUTER"]
+        switches = [d for d in devices if d.device_type == "SWITCH"]
+        outros = [d for d in devices if d.device_type in ["AP", "ENDPOINT"]]
+
+        # Criação das sub-tabs com contadores
         st_routers, st_switches, st_outros, st_todos = st.tabs([
-            "Routers", "Switches", "Outros (AP/EP)", "Todos"
+            f"Routers ({len(routers)})", 
+            f"Switches ({len(switches)})", 
+            f"Outros ({len(outros)})", 
+            f"Todos ({len(devices)})"
         ])
 
-        devices = inv.list_devices()
-
-        def render_lista(lista_filtrada):
+        # CORREÇÃO: render_lista agora aceita um prefixo para as keys
+        def render_lista(lista_filtrada, key_prefix):
             if not lista_filtrada:
-                st.info("Nenhum dispositivo encontrado nesta categoria.")
+                st.info("Nesta categoria não existem dispositivos.")
                 return
             for d in lista_filtrada:
                 with st.expander(f"{d.name} ({d.device_type})"):
@@ -275,26 +271,24 @@ with tab_gestao:
                     st.text(str(d))
                     
                     c1, c2 = st.columns(2)
-                    c1.button("Editar", key=f"ed_{d.name}", on_click=click_editar, args=(d,))
-                    if c2.button("Eliminar", key=f"el_{d.name}"):
+                    # A Key é única porque inclui o prefixo da Tab (r_, s_, o_ ou t_)
+                    c1.button("Editar", key=f"{key_prefix}_ed_{d.name}", on_click=click_editar, args=(d,))
+                    
+                    if c2.button("Eliminar", key=f"{key_prefix}_el_{d.name}"):
                         inv.remove_device(d.name)
                         st.rerun()
 
-        # Preenchimento de cada tab com filtros
         with st_routers:
-            lista = [d for d in devices if d.device_type == "ROUTER"]
-            render_lista(lista)
+            render_lista(routers, "r")
 
         with st_switches:
-            lista = [d for d in devices if d.device_type == "SWITCH"]
-            render_lista(lista)
+            render_lista(switches, "s")
 
         with st_outros:
-            lista = [d for d in devices if d.device_type in ["AP", "ENDPOINT"]]
-            render_lista(lista)
+            render_lista(outros, "o")
 
         with st_todos:
-            render_lista(devices)
+            render_lista(devices, "t")
         
         st.divider()
         if st.button("NUKE - Limpar Tudo", type="primary", use_container_width=True, key="btn_nuke_all"):
@@ -302,68 +296,52 @@ with tab_gestao:
             st.session_state.editing_device = None
             limpar_form()
             st.rerun()
-            
+
 # --- 2. TAB CONSULTAS ---
 with tab_consultas:
     st.subheader("Filtros de Pesquisa")
     
-    # Pesquisa Principal por Nome
     search_n = st.text_input("Procurar por Nome do Dispositivo", key="query_nome_search")
     if st.button("Filtrar por Nome", key="btn_filter_name"):
         results = [d for d in inv.list_devices() if search_n.lower() in d.name.lower()]
-        if results:
-            for r in results: st.text(str(r))
-        else:
-            st.warning(f"Nenhum dispositivo com o nome '{search_n}' encontrado.")
+        for r in results: st.text(str(r))
     
     st.divider()
 
-    # Outros Filtros
     r1_c1, r1_c2, r1_c3 = st.columns(3)
     with r1_c1:
         search_m = st.text_input("Filtrar por Modelo", key="query_modelo")
         if st.button("Pesquisar Modelo", key="btn_filter_model"):
             results = [d for d in inv.list_devices() if search_m.lower() in d.model.lower()]
-            if results:
-                for r in results: st.text(str(r))
-            else: st.warning("Nenhum modelo encontrado.")
+            for r in results: st.text(str(r))
                 
     with r1_c2:
         search_ser = st.selectbox("Interface Serial?", ["Não", "Sim"], key="query_ser")
         if st.button("Filtrar Serial", key="btn_filter_serial"):
             results = [d for d in inv.list_devices() if d.serial_interface == (search_ser == "Sim")]
-            if results:
-                for r in results: st.text(str(r))
-            else: st.info("Nenhum dispositivo encontrado.")
+            for r in results: st.text(str(r))
 
     with r1_c3:
         search_t = st.selectbox("Filtrar por Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="query_tipo")
         if st.button("Pesquisar Tipo", key="btn_filter_tipo"):
-            if search_t == "Todos":
-                results = inv.list_devices()
-            else:
-                results = [d for d in inv.list_devices() if d.device_type == search_t]
+            results = inv.list_devices() if search_t == "Todos" else [d for d in inv.list_devices() if d.device_type == search_t]
             for r in results: st.text(str(r))
 
     st.divider()
     
     r2_c1, r2_c2 = st.columns(2)
     with r2_c1:
-        search_s = st.selectbox("Estado do Dispositivo", ["Ativo", "Inativo"], key="query_status")
+        search_s = st.selectbox("Estado", ["Ativo", "Inativo"], key="query_status")
         if st.button("Filtrar Estado", key="btn_filter_status"):
             status_map = {"Ativo": "ACTIVE", "Inativo": "INACTIVE"}
             results = [d for d in inv.list_devices() if d.status == status_map[search_s]]
-            if results:
-                for r in results: st.text(str(r))
-            else: st.info(f"Nenhum dispositivo {search_s.lower()} encontrado.")
+            for r in results: st.text(str(r))
 
     with r2_c2:
-        search_ip = st.text_input("Pesquisar por IP (IPv4)", key="query_ip")
+        search_ip = st.text_input("Pesquisar por IP", key="query_ip")
         if st.button("Pesquisar IP", key="btn_filter_ip"):
             results = [d for d in inv.list_devices() if getattr(d, 'ipv4', '') == search_ip]
-            if results:
-                for r in results: st.text(str(r))
-            else: st.warning("IP não encontrado no inventário.")
+            for r in results: st.text(str(r))
 
 # --- 3. TAB TRÁFEGO ---
 with tab_trafego:
@@ -377,11 +355,9 @@ with tab_trafego:
         down = st.number_input("Novo Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
         if st.button("Atualizar Consumo", key="btn_update_traffic"):
             ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down
-            st.success("Dados atualizados!")
             st.rerun()
         
         st.divider()
-        st.subheader("Visualização de Consumo")
         chart_data = {e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps}
         st.bar_chart(chart_data)
 
@@ -391,27 +367,24 @@ with tab_ligacoes:
     if not hosts: 
         st.info("Crie Routers ou Switches para estabelecer ligações.")
     else:
-        h_name = st.selectbox("Escolher Equipamento Base", [h.name for h in hosts], key="host_link_select")
+        h_name = st.selectbox("Equipamento Base", [h.name for h in hosts], key="host_link_select")
         h_obj = inv.devices.get(h_name)
         
         c_link, c_view = st.columns(2)
         with c_link:
-            st.markdown("### Criar Nova Ligação")
+            st.markdown("### Criar Ligação")
             others = [d.name for d in inv.list_devices() if d.name != h_name]
             target = st.selectbox("Ligar a:", others, key="target_link_select")
             if st.button("Estabelecer Ligação", key="btn_establish_link"):
                 try:
                     if hasattr(h_obj, "connect_device"): h_obj.connect_device(target)
                     else: h_obj.connect_endpoint(target)
-                    st.success(f"Ligado: {h_name} <-> {target}")
                     st.rerun()
                 except Exception as e: st.error(e)
         
         with c_view:
             st.markdown("### Ligações Atuais")
             cons = getattr(h_obj, "connected_devices", []) or getattr(h_obj, "connected_endpoints", [])
-            if not cons:
-                st.write("Sem dispositivos ligados.")
             for c in cons:
                 if st.button(f"Desligar {c}", key=f"dis_{h_name}_{c}"):
                     if hasattr(h_obj, "disconnect_device"): h_obj.disconnect_device(c)
