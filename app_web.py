@@ -102,7 +102,7 @@ def click_cancelar():
     limpar_form()
 
 # ==================================================
-# SIDEBAR: GESTÃO, EXPORTAÇÃO (EM ESCADA) E UPLOAD
+# SIDEBAR: GESTÃO E EXPORTAÇÕES (EM ESCADA)
 # ==================================================
 with st.sidebar:
     st.title("Gestão de Dados")
@@ -124,85 +124,46 @@ with st.sidebar:
     
     if lista_dicts:
         df = pd.DataFrame(lista_dicts)
-
-        # CRIAÇÃO DAS DUAS COLUNAS (ESCADA/GRELHA)
         c_left, c_right = st.columns(2)
-
-        # --- COLUNA ESQUERDA (JSON e PDF) ---
         with c_left:
-            # 1. JSON
             st.download_button("📄 JSON", data=json.dumps(lista_dicts, indent=2), file_name="inventario.json", key="btn_json")
-            
-            # 3. PDF Oficial
             try:
                 pdf_data = gerar_pdf(inv.list_devices())
                 st.download_button("📕 PDF", data=pdf_data, file_name="inventario_oficial.pdf", key="btn_pdf")
-            except:
-                st.error("Erro PDF")
-
-        # --- COLUNA DIREITA (Excel e TXT) ---
+            except: st.error("Erro PDF")
         with c_right:
-            # 2. Excel
             buf = BytesIO()
             with pd.ExcelWriter(buf, engine='openpyxl') as wr:
                 df.to_excel(wr, index=False, sheet_name='Dispositivos')
             st.download_button("📗 Excel", data=buf.getvalue(), file_name="inventario.xlsx", key="btn_excel")
-
-            # 4. TXT Detalhado
+            
             txt_lines = [f"RELATÓRIO - {datetime.now().strftime('%d/%m/%Y')}\n", "="*30 + "\n"]
             for d in inv.list_devices():
-                rk = getattr(d, 'rack', 1)
-                cond = getattr(d, 'condition', 'Funcional')
-                txt_lines.append(f"{d.name} [{d.device_type}] R:{rk}")
-                txt_lines.append(f"Status: {cond} | MAC: {getattr(d, 'mac_address', 'N/A')}")
-                txt_lines.append("-" * 20 + "\n")
+                txt_lines.append(f"{d.name} [{d.device_type}] (Bastidor {getattr(d, 'rack', 1)})")
+                txt_lines.append(f"Dados: {str(d)}\n" + "-"*20 + "\n")
             st.download_button("📝 TXT", data="\n".join(txt_lines), file_name="relatorio.txt", key="btn_txt")
 
     st.divider()
-    
-    # --- UPLOAD LOCAL ---
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
-
     if uploaded_file is not None:
         if st.button("Restaurar Backup", use_container_width=True, key="btn_restore_upload"):
             try:
                 data = json.load(uploaded_file)
                 temp_inv = NetworkInventory()
                 for item in data:
-                    t = item.get("type")
-                    mod = item.get("model", "")
-                    obs = item.get("observations", "")
-                    ser_int = item.get("serial_interface", False)
-                    cond = item.get("condition", "Funcional")
-                    def_desc = item.get("defect_description", "")
-                    rk = item.get("rack", 1)
-
-                    if t == "ROUTER":
-                        obj = Router(item["name"], item.get("ipv4", ""), "", item["mac_address"], mod, ser_int, obs, cond, def_desc, rk)
-                        obj.connected_devices = list(item.get("connected_devices", []))
-                    elif t == "SWITCH":
-                        obj = Switch(item["name"], "", item["mac_address"], int(item["ports"]), 
-                                     item.get("eth_ports", 0), item.get("fast_eth_ports", 0), item.get("giga_eth_ports", 0),
-                                     mod, ser_int, obs, cond, def_desc, rk)
-                        obj.connected_devices = list(item.get("connected_devices", []))
-                    elif t == "AP":
-                        obj = AccessPoint(item["name"], item["ssid"], mod, ser_int, obs, cond, def_desc, rk)
-                        obj.connected_endpoints = list(item.get("connected_endpoints", []))
+                    t, mod, obs = item.get("type"), item.get("model", ""), item.get("observations", "")
+                    ser_int, cond, def_desc, rk = item.get("serial_interface", False), item.get("condition", "Funcional"), item.get("defect_description", ""), item.get("rack", 1)
+                    if t == "ROUTER": obj = Router(item["name"], item.get("ipv4", ""), "", item["mac_address"], mod, ser_int, obs, cond, def_desc, rk)
+                    elif t == "SWITCH": obj = Switch(item["name"], "", item["mac_address"], int(item["ports"]), item.get("eth_ports", 0), item.get("fast_eth_ports", 0), item.get("giga_eth_ports", 0), mod, ser_int, obs, cond, def_desc, rk)
+                    elif t == "AP": obj = AccessPoint(item["name"], item["ssid"], mod, ser_int, obs, cond, def_desc, rk)
                     elif t == "ENDPOINT":
                         obj = Endpoint(item["name"], item["user_id"], item.get("ipv4", ""), "", item["mac_address"], mod, ser_int, obs, cond, def_desc, rk)
-                        obj.traffic_up_mb = float(item.get("traffic_up_mb", 0.0))
-                        obj.traffic_down_mb = float(item.get("traffic_down_mb", 0.0))
+                        obj.traffic_up_mb, obj.traffic_down_mb = float(item.get("traffic_up_mb", 0.0)), float(item.get("traffic_down_mb", 0.0))
                     else: continue
-                    
                     obj.status = item.get("status", "ACTIVE")
                     temp_inv.add_device(obj)
-
                 st.session_state.inv = temp_inv
-                st.session_state.editing_device = None
-                limpar_form()
-                log_event("Backup restaurado via Upload.")
-                st.success("Backup restaurado!")
                 st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
 
@@ -215,13 +176,8 @@ st.title("Sistema de Gestão de Rede")
 
 st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
-
-Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
-Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
-
-Contamos com a colaboração de todos para manter o inventário correto!
+Esta aplicação não possui controlo de acesso (UAC). Solicitamos que **não alterem ou eliminem** dispositivos sem confirmação dos **Administradores**.
 """)
-# ---------------------------------------
 
 # ==================================================
 # TABS PRINCIPAIS
@@ -247,18 +203,15 @@ with tab_gestao:
 
         def process_update(new_obj):
             if is_editing:
-                if hasattr(dev_edit, "connected_devices"): new_obj.connected_devices = dev_edit.connected_devices
                 inv.remove_device(dev_edit.name)
                 log_event(f"EDITADO: {dev_edit.name} (Novo Bastidor: {rack})")
-            else:
-                log_event(f"CRIADO: {nome} no Bastidor {rack}")
+            else: log_event(f"CRIADO: {nome} no Bastidor {rack}")
             inv.add_device(new_obj)
             st.session_state.editing_device = None
             limpar_form()
             st.rerun()
 
         common = {"model": modelo, "serial_interface": (ser_sel == "Sim"), "observations": obs, "condition": saude, "defect_description": defeito_desc, "rack": rack}
-
         if tipo == "ROUTER":
             ipv4, mac = st.text_input("IPv4", key="add_ip_router"), st.text_input("MAC", key="add_mac_router")
             if st.button(f"{acao_btn} Router"): process_update(Router(nome, ipv4, "", mac, **common))
@@ -273,69 +226,72 @@ with tab_gestao:
         elif tipo == "ENDPOINT":
             u, ip, m = st.text_input("User ID", key="add_uid_ep"), st.text_input("IPv4", key="add_ip_ep"), st.text_input("MAC", key="add_mac_ep")
             if st.button(f"{acao_btn} Endpoint"): process_update(Endpoint(nome, u, ip, "", m, **common))
-
         if is_editing: st.button("Cancelar", on_click=click_cancelar)
 
     with col_list:
-        st.subheader("Inventário")
+        st.subheader("Lista do Inventário")
         devices = inv.list_devices()
         r, s, o = [d for d in devices if d.device_type=="ROUTER"], [d for d in devices if d.device_type=="SWITCH"], [d for d in devices if d.device_type not in ["ROUTER", "SWITCH"]]
         t_r, t_s, t_o, t_all = st.tabs([f"Routers ({len(r)})", f"Switches ({len(s)})", f"Outros ({len(o)})", f"Todos ({len(devices)})"])
 
-        def render(lista, pref):
+        def render_lista(lista, prefix):
             if not lista: st.info("Vazio.")
             for d in lista:
-                cond = getattr(d, 'condition', 'Funcional')
-                rk = getattr(d, 'rack', 1)
-                ser_int = "Sim" if getattr(d, 'serial_interface', False) else "Não"
-                mac_val = getattr(d, 'mac_address', 'N/A')
-                ip_val = getattr(d, 'ipv4', 'N/A')
-                
+                cond, rk = getattr(d, 'condition', 'Funcional'), getattr(d, 'rack', 1)
                 header = f"{d.name} | Bastidor {rk}"
                 if cond == "Avariado": header += " 🔴"
                 elif cond == "Com Defeito": header += " 🟠"
-                
                 with st.expander(header):
                     st.write(f"**Saúde:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
-                    st.write(f"**Interface Serial:** {ser_int} | **MAC:** {mac_val} | **IP:** {ip_val}")
-                    
-                    obs_val = d.observations if d.observations else 'Sem observações.'
-                    st.info(f"**OBS.:** {obs_val}")
-
-                    if getattr(d, 'defect_description', ''):
-                        st.warning(f"**Defeito:** {d.defect_description}")
-                    
+                    st.write(f"**Serial:** {'Sim' if getattr(d, 'serial_interface', False) else 'Não'} | **MAC:** {getattr(d, 'mac_address', 'N/A')} | **IP:** {getattr(d, 'ipv4', 'N/A')}")
+                    st.info(f"**OBS.:** {d.observations if d.observations else 'Sem observações.'}")
                     c1, c2 = st.columns(2)
-                    c1.button("Editar", key=f"{pref}_ed_{d.name}", on_click=click_editar, args=(d,))
-                    if c2.button("Eliminar", key=f"{pref}_el_{d.name}"):
-                        log_event(f"ELIMINADO: {d.name} do Bastidor {rk}")
-                        inv.remove_device(d.name)
-                        st.rerun()
+                    c1.button("Editar", key=f"{prefix}_ed_{d.name}", on_click=click_editar, args=(d,))
+                    if c2.button("Eliminar", key=f"{prefix}_el_{d.name}"):
+                        log_event(f"ELIMINADO: {d.name} do Bastidor {rk}"); inv.remove_device(d.name); st.rerun()
 
-        with t_r: render(r, "r")
-        with t_s: render(s, "s")
-        with t_o: render(o, "o")
-        with t_all: render(devices, "all")
+        with t_r: render_lista(r, "r")
+        with t_s: render_lista(s, "s")
+        with t_o: render_lista(o, "o")
+        with t_all: render_lista(devices, "t")
 
-# --- Tabs de Consulta, Tráfego e Ligações permanecem funcionais ---
+# --- 2. TAB CONSULTAS (RESTALRADA COM TODOS OS FILTROS) ---
 with tab_consultas:
-    st.subheader("Pesquisa")
-    c_q = st.columns(3)
-    with c_q[0]:
-        search_rk = st.selectbox("Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
-        if st.button("Filtrar Bastidor"):
-            res = inv.list_devices() if search_rk=="Todos" else [d for d in inv.list_devices() if getattr(d, 'rack', 1)==search_rk]
-            for r_res in res: st.text(str(r_res))
-    with c_q[1]:
-        search_n = st.text_input("Nome", key="q_n")
-        if st.button("Filtrar Nome"):
-            for r_res in [d for d in inv.list_devices() if search_n.lower() in d.name.lower()]: st.text(str(r_res))
-    with c_q[2]:
-        search_cond = st.selectbox("Saúde", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
-        if st.button("Filtrar Saúde"):
-            res = inv.list_devices() if search_cond=="Todos" else [d for d in inv.list_devices() if getattr(d, 'condition', 'Funcional')==search_cond]
-            for r_res in res: st.text(str(r_res))
+    st.subheader("Pesquisa Avançada")
+    
+    # Linha 1 de Filtros
+    r1_c1, r1_c2, r1_c3 = st.columns(3)
+    with r1_c1: search_n = st.text_input("Filtrar por Nome", key="q_n")
+    with r1_c2: search_t = st.selectbox("Filtrar por Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="q_t")
+    with r1_c3: search_rk = st.selectbox("Filtrar por Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
 
+    # Linha 2 de Filtros
+    r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+    with r2_c1: search_cond = st.selectbox("Filtrar por Saúde", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
+    with r2_c2: search_ser = st.selectbox("Interface Serial?", ["Todos", "Sim", "Não"], key="q_ser")
+    with r2_c3: search_mac = st.text_input("Filtrar por MAC", key="q_mac")
+    with r2_c4: search_ip = st.text_input("Filtrar por IP", key="q_ip")
+
+    if st.button("Executar Pesquisa"):
+        res = inv.list_devices()
+        # Aplicação sequencial de filtros
+        if search_n: res = [d for d in res if search_n.lower() in d.name.lower()]
+        if search_t != "Todos": res = [d for d in res if d.device_type == search_t]
+        if search_rk != "Todos": res = [d for d in res if getattr(d, 'rack', 1) == search_rk]
+        if search_cond != "Todos": res = [d for d in res if getattr(d, 'condition', 'Funcional') == search_cond]
+        if search_ser != "Todos": res = [d for d in res if getattr(d, 'serial_interface', False) == (search_ser == "Sim")]
+        if search_mac: res = [d for d in res if search_mac.lower() in getattr(d, 'mac_address', '').lower()]
+        if search_ip: res = [d for d in res if search_ip in getattr(d, 'ipv4', '')]
+
+        if not res: st.warning("Nenhum dispositivo encontrado com estes critérios.")
+        for r_res in res:
+            # Mostra o resultado com o mesmo estilo visual rico da Gestão
+            with st.expander(f"{r_res.name} | Bastidor {getattr(r_res, 'rack', 1)}"):
+                st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {getattr(r_res, 'condition', 'Funcional')} | **Modelo:** {r_res.model}")
+                st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
+                st.info(f"**OBS.:** {r_res.observations if r_res.observations else 'N/A'}")
+
+# --- TABS TRÁFEGO E LIGAÇÕES ---
 with tab_trafego:
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
     if eps:
@@ -344,8 +300,7 @@ with tab_trafego:
         up = st.number_input("Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
         down = st.number_input("Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
         if st.button("Atualizar Consumo"):
-            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down
-            st.rerun()
+            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down; st.rerun()
         st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
 
 with tab_ligacoes:
