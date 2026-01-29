@@ -134,7 +134,6 @@ with st.sidebar:
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
             file_name="inventario.json", 
             mime="application/json",
-            use_container_width=True,
             key="btn_json"
         )
 
@@ -158,7 +157,6 @@ with st.sidebar:
             data=buffer.getvalue(),
             file_name="inventario.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
             key="btn_excel"
         )
 
@@ -166,11 +164,10 @@ with st.sidebar:
         try:
             pdf_data = gerar_pdf(inv.list_devices())
             st.download_button(
-                label="📕 PDF Oficial",
+                label="📕 Download PDF",
                 data=pdf_data,
                 file_name="relatorio_oficial.pdf",
                 mime="application/pdf",
-                use_container_width=True,
                 key="btn_pdf"
             )
         except:
@@ -192,7 +189,6 @@ with st.sidebar:
             data="\n".join(txt_lines),
             file_name="relatorio_rede.txt",
             mime="text/plain",
-            use_container_width=True,
             key="btn_txt"
         )
 
