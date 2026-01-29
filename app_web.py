@@ -134,7 +134,6 @@ with st.sidebar:
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
             file_name="inventario.json", 
             mime="application/json",
-            use_container_width=True,
             key="btn_json"
         )
 
@@ -145,7 +144,6 @@ with st.sidebar:
             data=csv_data,
             file_name="inventario.csv",
             mime="text/csv",
-            use_container_width=True,
             key="btn_csv"
         )
 
@@ -159,7 +157,6 @@ with st.sidebar:
             data=buffer.getvalue(),
             file_name="inventario.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
             key="btn_excel"
         )
 
@@ -171,7 +168,6 @@ with st.sidebar:
                 data=pdf_data,
                 file_name="relatorio_oficial.pdf",
                 mime="application/pdf",
-                use_container_width=True,
                 key="btn_pdf"
             )
         except:
