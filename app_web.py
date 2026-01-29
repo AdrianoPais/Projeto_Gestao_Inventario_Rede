@@ -4,7 +4,7 @@ import os
 import pandas as pd 
 from io import BytesIO 
 from datetime import datetime
-from fpdf import FPDF # Certifica-te que tens 'fpdf' no requirements.txt
+from fpdf import FPDF 
 from inventory import NetworkInventory
 from devices import Router, Switch, AccessPoint, Endpoint
 from storage import save_to_json, load_from_json
@@ -37,7 +37,6 @@ def log_event(mensagem):
         f.write(f"[{timestamp}] {mensagem}\n")
 
 def gerar_pdf(lista_dispositivos):
-    """Gera um relatório PDF oficial com os dados do inventário."""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
@@ -50,7 +49,7 @@ def gerar_pdf(lista_dispositivos):
         pdf.cell(0, 10, f"{d.name} ({d.device_type}) - Bastidor {rk}", "T", 1)
         pdf.set_font("Arial", "", 10)
         pdf.cell(0, 7, f"Modelo: {d.model} | Saude: {cond}", 0, 1)
-        pdf.cell(0, 7, f"Dados Tecnicos: {str(d)}", 0, 1)
+        pdf.cell(0, 7, f"Dados: {str(d)}", 0, 1)
         pdf.ln(4)
     return pdf.output(dest="S").encode("latin-1", errors="replace")
 
@@ -103,17 +102,18 @@ def click_cancelar():
     limpar_form()
 
 # ==================================================
-# SIDEBAR: GESTÃO E EXPORTAÇÕES (FORMATO ESCADA)
+# SIDEBAR: GESTÃO E EXPORTAÇÕES (EM ESCADA)
 # ==================================================
+
 with st.sidebar:
     st.title("Gestão de Dados")
     
-    if st.button("Guardar no Servidor", use_container_width=True, key="btn_save_srv"):
+    if st.button("Guardar no Servidor", key="btn_save_srv"):
         save_to_json(inv, "inventario.json")
         log_event("Guardado manual no servidor.")
         st.success("Dados guardados.")
     
-    if st.button("Recarregar do Ficheiro", use_container_width=True, key="btn_reload_srv"):
+    if st.button("Recarregar do Ficheiro", key="btn_reload_srv"):
         st.session_state.inv = load_from_json("inventario.json")
         st.session_state.editing_device = None
         limpar_form()
@@ -123,70 +123,67 @@ with st.sidebar:
     st.subheader("Exportar Inventário")
     lista_dicts = [d.to_dict() for d in inv.list_devices()]
     
-    if lista_dicts:
+    if not lista_dicts:
+        st.warning("Inventário vazio.")
+    else:
         df = pd.DataFrame(lista_dicts)
 
-        # 1. JSON (Largura Total)
+        # 1. DOWNLOAD JSON
         st.download_button(
             label="📄 Download JSON", 
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
             file_name="inventario.json", 
             mime="application/json",
-            use_container_width=True,
             key="btn_json"
         )
 
-        # 2. EXCEL e PDF (Lado a Lado - Escada)
-        c_mid1, c_mid2 = st.columns(2)
-        
-        # Coluna Excel
+        # 2. DOWNLOAD CSV
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📊 Download CSV",
+            data=csv_data,
+            file_name="inventario.csv",
+            mime="text/csv",
+            key="btn_csv"
+        )
+
+        # 3. DOWNLOAD EXCEL
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Dispositivos')
-        c_mid1.download_button(
-            label="📗 Excel",
+        
+        st.download_button(
+            label="📗 Download Excel",
             data=buffer.getvalue(),
             file_name="inventario.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
             key="btn_excel"
         )
-        
-        # Coluna PDF
-        try:
-            pdf_data = gerar_pdf(inv.list_devices())
-            c_mid2.download_button(
-                label="📕 PDF Oficial",
-                data=pdf_data,
-                file_name="relatorio_oficial.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                key="btn_pdf"
-            )
-        except:
-            c_mid2.error("Erro PDF")
 
-        # 3. TXT (Largura Total)
-        txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {datetime.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
+        # 4. DOWNLOAD TXT (Relatório Detalhado)
+        txt_lines = [f"RELATÓRIO DE INVENTÁRIO DE REDE - {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
         for d in inv.list_devices():
-            txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}] (Bastidor {getattr(d, 'rack', 1)})")
-            txt_lines.append(f"Saúde: {getattr(d, 'condition', 'Funcional')} | Modelo: {d.model}")
-            txt_lines.append(f"Dados: {str(d)}")
-            txt_lines.append(f"Obs: {d.observations if d.observations else 'N/A'}")
+            cond = getattr(d, 'condition', 'Funcional')
+            def_desc = getattr(d, 'defect_description', '')
+            txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}]")
+            txt_lines.append(f"Modelo: {d.model} | Saúde: {cond}")
+            if def_desc: txt_lines.append(f"Defeito: {def_desc}")
+            txt_lines.append(f"Dados Técnicos: {str(d)}")
+            txt_lines.append(f"Observações: {d.observations if d.observations else 'N/A'}")
             txt_lines.append("-" * 30 + "\n")
         
         st.download_button(
-            label="📝 Relatório TXT",
+            label="📝 Download TXT",
             data="\n".join(txt_lines),
             file_name="relatorio_rede.txt",
             mime="text/plain",
-            use_container_width=True,
             key="btn_txt"
         )
 
     st.divider()
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
+    
     if uploaded_file is not None:
         if st.button("Restaurar Backup", use_container_width=True, key="btn_restore_upload"):
             try:
@@ -205,7 +202,7 @@ with st.sidebar:
                     obj.status = item.get("status", "ACTIVE")
                     temp_inv.add_device(obj)
                 st.session_state.inv = temp_inv
-                log_event("Backup restaurado via Upload."); st.rerun()
+                st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
 
     st.divider()
@@ -213,19 +210,21 @@ with st.sidebar:
         if os.path.exists("logs.txt"):
             with open("logs.txt", "r") as f: st.text_area("Histórico", f.read(), height=200)
 
-# ==================================================
-# CORPO DA PÁGINA
-# ==================================================
 st.title("Sistema de Gestão de Rede")
 
 st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
 
-Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
+Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
+Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
 
 Contamos com a colaboração de todos para manter o inventário correto!
 """)
+# ---------------------------------------
 
+# ==================================================
+# TABS PRINCIPAIS
+# ==================================================
 tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs(["Gestão", "Consultas", "Tráfego", "Ligações"])
 
 with tab_gestao:
@@ -248,28 +247,28 @@ with tab_gestao:
         def process_update(new_obj):
             if is_editing:
                 inv.remove_device(dev_edit.name)
-                log_event(f"EDITADO: {dev_edit.name}")
-            else:
-                log_event(f"CRIADO: {nome} no Bastidor {rack}")
+                log_event(f"EDITADO: {dev_edit.name} (Novo Bastidor: {rack})")
+            else: log_event(f"CRIADO: {nome} no Bastidor {rack}")
             inv.add_device(new_obj)
             st.session_state.editing_device = None
-            limpar_form(); st.rerun()
+            limpar_form()
+            st.rerun()
 
-        params = {"model": modelo, "serial_interface": (ser_sel == "Sim"), "observations": obs, "condition": saude, "defect_description": defeito_desc, "rack": rack}
+        common = {"model": modelo, "serial_interface": (ser_sel == "Sim"), "observations": obs, "condition": saude, "defect_description": defeito_desc, "rack": rack}
         if tipo == "ROUTER":
             ipv4, mac = st.text_input("IPv4", key="add_ip_router"), st.text_input("MAC", key="add_mac_router")
-            if st.button(f"{acao_btn} Router"): process_update(Router(nome, ipv4, "", mac, **params))
+            if st.button(f"{acao_btn} Router"): process_update(Router(nome, ipv4, "", mac, **common))
         elif tipo == "SWITCH":
             p = st.number_input("Portas", 1, 48, 24, key="add_ports_sw")
             g, f = st.slider("Gigabit", 0, p, key="add_giga_sw"), st.slider("Fast", 0, p, key="add_fast_sw")
-            mac = st.text_input("MAC Address", key="add_mac_sw")
-            if st.button(f"{acao_btn} Switch"): process_update(Switch(nome, "", mac, p, p-g-f, f, g, **params))
+            mac = st.text_input("MAC", key="add_mac_sw")
+            if st.button(f"{acao_btn} Switch"): process_update(Switch(nome, "", mac, p, p-g-f, f, g, **common))
         elif tipo == "AP":
             ssid = st.text_input("SSID", key="add_ssid_ap")
-            if st.button(f"{acao_btn} AP"): process_update(AccessPoint(nome, ssid, **params))
+            if st.button(f"{acao_btn} AP"): process_update(AccessPoint(nome, ssid, **common))
         elif tipo == "ENDPOINT":
             u, ip, m = st.text_input("User ID", key="add_uid_ep"), st.text_input("IPv4", key="add_ip_ep"), st.text_input("MAC", key="add_mac_ep")
-            if st.button(f"{acao_btn} Endpoint"): process_update(Endpoint(nome, u, ip, "", m, **params))
+            if st.button(f"{acao_btn} Endpoint"): process_update(Endpoint(nome, u, ip, "", m, **common))
         if is_editing: st.button("Cancelar", on_click=click_cancelar)
 
     with col_list:
@@ -282,17 +281,12 @@ with tab_gestao:
             if not lista: st.info("Vazio.")
             for d in lista:
                 cond, rk = getattr(d, 'condition', 'Funcional'), getattr(d, 'rack', 1)
-                ser_int = "Sim" if getattr(d, 'serial_interface', False) else "Não"
-                mac_val = getattr(d, 'mac_address', 'N/A')
-                ip_val = getattr(d, 'ipv4', 'N/A')
-                
                 header = f"{d.name} | Bastidor {rk}"
                 if cond == "Avariado": header += " 🔴"
                 elif cond == "Com Defeito": header += " 🟠"
-                
                 with st.expander(header):
                     st.write(f"**Saúde:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
-                    st.write(f"**Serial:** {ser_int} | **MAC:** {mac_val} | **IP:** {ip_val}")
+                    st.write(f"**Serial:** {'Sim' if getattr(d, 'serial_interface', False) else 'Não'} | **MAC:** {getattr(d, 'mac_address', 'N/A')} | **IP:** {getattr(d, 'ipv4', 'N/A')}")
                     st.info(f"**OBS.:** {d.observations if d.observations else 'Sem observações.'}")
                     c1, c2 = st.columns(2)
                     c1.button("Editar", key=f"{prefix}_ed_{d.name}", on_click=click_editar, args=(d,))
@@ -304,21 +298,27 @@ with tab_gestao:
         with t_o: render_lista(o, "o")
         with t_all: render_lista(devices, "t")
 
+# --- 2. TAB CONSULTAS ---
+
 with tab_consultas:
     st.subheader("Pesquisa Avançada")
-    r1c1, r1c2, r1c3 = st.columns(3)
-    with r1c1: search_n = st.text_input("Nome", key="q_n")
-    with r1c2: search_t = st.selectbox("Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="q_t")
-    with r1c3: search_rk = st.selectbox("Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
     
-    r2c1, r2c2, r2c3, r2c4 = st.columns(4)
-    with r2c1: search_cond = st.selectbox("Saúde", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
-    with r2c2: search_ser = st.selectbox("Serial?", ["Todos", "Sim", "Não"], key="q_ser")
-    with r2c3: search_mac = st.text_input("MAC", key="q_mac")
-    with r2c4: search_ip = st.text_input("IP", key="q_ip")
+    # Linha 1 de Filtros
+    r1_c1, r1_c2, r1_c3 = st.columns(3)
+    with r1_c1: search_n = st.text_input("Filtrar por Nome", key="q_n")
+    with r1_c2: search_t = st.selectbox("Filtrar por Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="q_t")
+    with r1_c3: search_rk = st.selectbox("Filtrar por Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
 
-    if st.button("Executar Pesquisa", use_container_width=True):
+    # Linha 2 de Filtros
+    r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+    with r2_c1: search_cond = st.selectbox("Filtrar por Saúde", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
+    with r2_c2: search_ser = st.selectbox("Interface Serial?", ["Todos", "Sim", "Não"], key="q_ser")
+    with r2_c3: search_mac = st.text_input("Filtrar por MAC", key="q_mac")
+    with r2_c4: search_ip = st.text_input("Filtrar por IP", key="q_ip")
+
+    if st.button("Executar Pesquisa"):
         res = inv.list_devices()
+        # Aplicação sequencial de filtros
         if search_n: res = [d for d in res if search_n.lower() in d.name.lower()]
         if search_t != "Todos": res = [d for d in res if d.device_type == search_t]
         if search_rk != "Todos": res = [d for d in res if getattr(d, 'rack', 1) == search_rk]
@@ -326,31 +326,34 @@ with tab_consultas:
         if search_ser != "Todos": res = [d for d in res if getattr(d, 'serial_interface', False) == (search_ser == "Sim")]
         if search_mac: res = [d for d in res if search_mac.lower() in getattr(d, 'mac_address', '').lower()]
         if search_ip: res = [d for d in res if search_ip in getattr(d, 'ipv4', '')]
-        
+
+        if not res: st.warning("Nenhum dispositivo encontrado com estes critérios.")
         for r_res in res:
+            # Mostra o resultado com o mesmo estilo visual rico da Gestão
             with st.expander(f"{r_res.name} | Bastidor {getattr(r_res, 'rack', 1)}"):
-                st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {getattr(r_res, 'condition', 'Funcional')}")
+                st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {getattr(r_res, 'condition', 'Funcional')} | **Modelo:** {r_res.model}")
                 st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
                 st.info(f"**OBS.:** {r_res.observations if r_res.observations else 'N/A'}")
 
-# --- TABS TRÁFEGO E LIGAÇÕES (SEM ALTERAÇÕES) ---
+# --- TABS TRÁFEGO E LIGAÇÕES ---
 with tab_trafego:
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
     if eps:
-        target = st.selectbox("Escolher Endpoint", [e.name for e in eps], key="traffic_target_select")
+        target = st.selectbox("Endpoint", [e.name for e in eps], key="traffic_target_select")
         ep_obj = inv.get_endpoint(target)
         up = st.number_input("Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
         down = st.number_input("Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
-        if st.button("Atualizar Dados"): ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down; st.rerun()
+        if st.button("Atualizar Consumo"):
+            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down; st.rerun()
         st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
 
 with tab_ligacoes:
     hosts = [d for d in inv.list_devices() if hasattr(d, "connected_devices") or hasattr(d, "connected_endpoints")]
     if hosts:
-        h_name = st.selectbox("Equipamento Central", [h.name for h in hosts], key="host_link_select")
+        h_name = st.selectbox("Equipamento Base", [h.name for h in hosts], key="host_link_select")
         h_obj = inv.devices.get(h_name)
-        c_l, c_r = st.columns(2)
-        with c_l:
+        c1, c2 = st.columns(2)
+        with c1:
             target = st.selectbox("Ligar a:", [d.name for d in inv.list_devices() if d.name != h_name], key="target_link_select")
             if st.button("Ligar"):
                 try:
@@ -358,7 +361,7 @@ with tab_ligacoes:
                     else: h_obj.connect_endpoint(target)
                     st.rerun()
                 except Exception as e: st.error(e)
-        with c_r:
+        with c2:
             cons = getattr(h_obj, "connected_devices", []) or getattr(h_obj, "connected_endpoints", [])
             for c in cons:
                 if st.button(f"Desligar {c}", key=f"dis_{h_name}_{c}"):
