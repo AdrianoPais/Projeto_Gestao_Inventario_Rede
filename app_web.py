@@ -196,7 +196,7 @@ with tab_gestao:
     acao_btn = "Atualizar" if is_editing else "Adicionar"
 
     with col_add:
-        st.subheader("Formulário")
+        st.subheader("Dispositivo")
         tipo = st.selectbox("Tipo", ["ROUTER", "SWITCH", "AP", "ENDPOINT"], disabled=is_editing, key="add_tipo_select")
         nome = st.text_input("Nome Único", key="add_nome_input").strip()
         modelo = st.text_input("Modelo", key="add_modelo_input")
