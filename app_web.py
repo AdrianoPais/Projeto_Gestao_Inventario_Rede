@@ -102,7 +102,7 @@ def click_cancelar():
     limpar_form()
 
 # ==================================================
-# SIDEBAR: GESTÃO, EXPORTAÇÃO E UPLOAD
+# SIDEBAR: GESTÃO, EXPORTAÇÃO (EM ESCADA) E UPLOAD
 # ==================================================
 with st.sidebar:
     st.title("Gestão de Dados")
@@ -125,39 +125,42 @@ with st.sidebar:
     if lista_dicts:
         df = pd.DataFrame(lista_dicts)
 
-        # 1. JSON
-        st.download_button("📄 Download JSON", data=json.dumps(lista_dicts, indent=2), file_name="inventario.json", key="btn_json")
-        
-        # 2. Excel e PDF
-        c_exp = st.columns(2)
-        buf = BytesIO()
-        with pd.ExcelWriter(buf, engine='openpyxl') as wr:
-            df.to_excel(wr, index=False, sheet_name='Dispositivos')
-        c_exp[0].download_button("📗 Download Excel", data=buf.getvalue(), file_name="inventario.xlsx", key="btn_excel")
-        
-        # Gera PDF (Tenta importar, se falhar avisa)
-        try:
-            pdf_data = gerar_pdf(inv.list_devices())
-            c_exp[1].download_button("📕 Download PDF", data=pdf_data, file_name="inventario_oficial.pdf", key="btn_pdf")
-        except Exception as e:
-            c_exp[1].error("Erro PDF")
+        # CRIAÇÃO DAS DUAS COLUNAS (ESCADA/GRELHA)
+        c_left, c_right = st.columns(2)
 
-        # 3. TXT Detalhado
-        txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {datetime.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
-        for d in inv.list_devices():
-            rk = getattr(d, 'rack', 1)
-            cond = getattr(d, 'condition', 'Funcional')
-            txt_lines.append(f"DISPOSITIVO: {d.name} [{d.device_type}] (Bastidor {rk})")
-            txt_lines.append(f"Saúde: {cond} | Modelo: {d.model}")
-            txt_lines.append(f"Dados Técnicos: {str(d)}")
-            txt_lines.append(f"Obs: {d.observations if d.observations else 'N/A'}")
-            txt_lines.append("-" * 30 + "\n")
-        
-        st.download_button("📝 Download TXT", data="\n".join(txt_lines), file_name="relatorio_rede.txt", key="btn_txt")
+        # --- COLUNA ESQUERDA (JSON e PDF) ---
+        with c_left:
+            # 1. JSON
+            st.download_button("📄 JSON", data=json.dumps(lista_dicts, indent=2), file_name="inventario.json", key="btn_json")
+            
+            # 3. PDF Oficial
+            try:
+                pdf_data = gerar_pdf(inv.list_devices())
+                st.download_button("📕 PDF", data=pdf_data, file_name="inventario_oficial.pdf", key="btn_pdf")
+            except:
+                st.error("Erro PDF")
+
+        # --- COLUNA DIREITA (Excel e TXT) ---
+        with c_right:
+            # 2. Excel
+            buf = BytesIO()
+            with pd.ExcelWriter(buf, engine='openpyxl') as wr:
+                df.to_excel(wr, index=False, sheet_name='Dispositivos')
+            st.download_button("📗 Excel", data=buf.getvalue(), file_name="inventario.xlsx", key="btn_excel")
+
+            # 4. TXT Detalhado
+            txt_lines = [f"RELATÓRIO - {datetime.now().strftime('%d/%m/%Y')}\n", "="*30 + "\n"]
+            for d in inv.list_devices():
+                rk = getattr(d, 'rack', 1)
+                cond = getattr(d, 'condition', 'Funcional')
+                txt_lines.append(f"{d.name} [{d.device_type}] R:{rk}")
+                txt_lines.append(f"Status: {cond} | MAC: {getattr(d, 'mac_address', 'N/A')}")
+                txt_lines.append("-" * 20 + "\n")
+            st.download_button("📝 TXT", data="\n".join(txt_lines), file_name="relatorio.txt", key="btn_txt")
 
     st.divider()
     
-    # --- UPLOAD LOCAL (RECUPERADO) ---
+    # --- UPLOAD LOCAL ---
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
 
@@ -171,7 +174,6 @@ with st.sidebar:
                     mod = item.get("model", "")
                     obs = item.get("observations", "")
                     ser_int = item.get("serial_interface", False)
-                    # Valores por defeito para campos novos
                     cond = item.get("condition", "Funcional")
                     def_desc = item.get("defect_description", "")
                     rk = item.get("rack", 1)
@@ -191,8 +193,7 @@ with st.sidebar:
                         obj = Endpoint(item["name"], item["user_id"], item.get("ipv4", ""), "", item["mac_address"], mod, ser_int, obs, cond, def_desc, rk)
                         obj.traffic_up_mb = float(item.get("traffic_up_mb", 0.0))
                         obj.traffic_down_mb = float(item.get("traffic_down_mb", 0.0))
-                    else:
-                        continue
+                    else: continue
                     
                     obj.status = item.get("status", "ACTIVE")
                     temp_inv.add_device(obj)
@@ -201,10 +202,9 @@ with st.sidebar:
                 st.session_state.editing_device = None
                 limpar_form()
                 log_event("Backup restaurado via Upload.")
-                st.success("Backup restaurado com sucesso!")
+                st.success("Backup restaurado!")
                 st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao processar ficheiro: {e}")
+            except Exception as e: st.error(f"Erro: {e}")
 
     st.divider()
     if st.checkbox("Ver Logs do Servidor"):
@@ -219,7 +219,7 @@ Esta aplicação não possui controlo de acesso (UAC). Solicitamos que **não al
 """)
 
 # ==================================================
-# TABS
+# TABS PRINCIPAIS
 # ==================================================
 tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs(["Gestão", "Consultas", "Tráfego", "Ligações"])
 
@@ -291,13 +291,9 @@ with tab_gestao:
                 elif cond == "Com Defeito": header += " 🟠"
                 
                 with st.expander(header):
-                    # LINHA PRINCIPAL: Saúde, Bastidor, Modelo
                     st.write(f"**Saúde:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
-                    
-                    # LINHA TÉCNICA: Serial, MAC, IP
                     st.write(f"**Interface Serial:** {ser_int} | **MAC:** {mac_val} | **IP:** {ip_val}")
                     
-                    # DESTAQUE DAS OBSERVAÇÕES EM AZUL
                     obs_val = d.observations if d.observations else 'Sem observações.'
                     st.info(f"**OBS.:** {obs_val}")
 
@@ -316,6 +312,7 @@ with tab_gestao:
         with t_o: render(o, "o")
         with t_all: render(devices, "all")
 
+# --- Tabs de Consulta, Tráfego e Ligações permanecem funcionais ---
 with tab_consultas:
     st.subheader("Pesquisa")
     c_q = st.columns(3)
@@ -334,7 +331,6 @@ with tab_consultas:
             res = inv.list_devices() if search_cond=="Todos" else [d for d in inv.list_devices() if getattr(d, 'condition', 'Funcional')==search_cond]
             for r_res in res: st.text(str(r_res))
 
-# --- Tráfego e Ligações mantêm a lógica das versões anteriores ---
 with tab_trafego:
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
     if eps:
