@@ -49,7 +49,7 @@ def gerar_pdf(lista_dispositivos):
         pdf.cell(0, 10, f"{d.name} ({d.device_type}) - Bastidor {rk}", "T", 1)
         pdf.set_font("Arial", "", 10)
         pdf.cell(0, 7, f"Modelo: {d.model} | Saude: {cond}", 0, 1)
-        pdf.cell(0, 7, f"Dados: {str(d)}", 0, 1)
+        pdf.cell(0, 7, f"Dados Técnicos: {str(d)}", 0, 1)
         pdf.ln(4)
     return pdf.output(dest="S").encode("latin-1", errors="replace")
 
@@ -102,7 +102,7 @@ def click_cancelar():
     limpar_form()
 
 # ==================================================
-# SIDEBAR: GESTÃO E EXPORTAÇÕES (LINHA A LINHA)
+# SIDEBAR: GESTÃO E EXPORTAÇÕES (UMA POR LINHA)
 # ==================================================
 
 with st.sidebar:
@@ -128,7 +128,6 @@ with st.sidebar:
     else:
         df = pd.DataFrame(lista_dicts)
 
-        # 1. DOWNLOAD JSON
         st.download_button(
             label="📄 Download JSON", 
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
@@ -137,7 +136,6 @@ with st.sidebar:
             key="btn_json"
         )
 
-        # 2. DOWNLOAD CSV
         csv_data = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📊 Download CSV",
@@ -147,7 +145,6 @@ with st.sidebar:
             key="btn_csv"
         )
 
-        # 3. DOWNLOAD EXCEL
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Dispositivos')
@@ -160,11 +157,10 @@ with st.sidebar:
             key="btn_excel"
         )
 
-        # 4. DOWNLOAD PDF
         try:
             pdf_data = gerar_pdf(inv.list_devices())
             st.download_button(
-                label="📕 Download PDF",
+                label="📕 PDF Oficial",
                 data=pdf_data,
                 file_name="relatorio_oficial.pdf",
                 mime="application/pdf",
@@ -173,7 +169,6 @@ with st.sidebar:
         except:
             st.sidebar.error("Erro ao gerar PDF")
 
-        # 5. DOWNLOAD TXT
         txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {datetime.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
         for d in inv.list_devices():
             rk = getattr(d, 'rack', 1)
@@ -226,8 +221,7 @@ st.title("Sistema de Gestão de Rede")
 
 st.warning("""
 **⚠️ Nota Importante (Sistema de Honra)**
-Esta aplicação está alojada no servidor da Streamlit e, de momento, não possui controlo de acesso individual (UAC). 
-Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
+Esta aplicação está alojada no servidor da Streamlit e não possui controlo de acesso individual (UAC). Por este motivo, operamos num **Sistema de Honra**: solicitamos a todos os utilizadores que **não alterem ou eliminem** quaisquer dispositivos ou configurações sem a confirmação prévia dos **Administradores**. 
 
 Contamos com a colaboração de todos para manter o inventário correto!
 """)
@@ -290,16 +284,15 @@ with tab_gestao:
             if not lista: st.info("Vazio.")
             for d in lista:
                 cond, rk = getattr(d, 'condition', 'Funcional'), getattr(d, 'rack', 1)
-                ser_int = "Sim" if getattr(d, 'serial_interface', False) else "Não"
-                mac_val = getattr(d, 'mac_address', 'N/A')
-                ip_val = getattr(d, 'ipv4', 'N/A')
-                
                 header = f"{d.name} | Bastidor {rk}"
+                # Lógica de Ícones coloridos
                 if cond == "Avariado": header += " 🔴"
                 elif cond == "Com Defeito": header += " 🟠"
+                else: header += " 🟢" # Ícone Verde para Funcional
+                
                 with st.expander(header):
                     st.write(f"**Saúde:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
-                    st.write(f"**Serial:** {ser_int} | **MAC:** {mac_val} | **IP:** {ip_val}")
+                    st.write(f"**Serial:** {'Sim' if getattr(d, 'serial_interface', False) else 'Não'} | **MAC:** {getattr(d, 'mac_address', 'N/A')} | **IP:** {getattr(d, 'ipv4', 'N/A')}")
                     st.info(f"**OBS.:** {d.observations if d.observations else 'Sem observações.'}")
                     c1, c2 = st.columns(2)
                     c1.button("Editar", key=f"{prefix}_ed_{d.name}", on_click=click_editar, args=(d,))
@@ -310,6 +303,10 @@ with tab_gestao:
         with t_s: render_lista(s, "s")
         with t_o: render_lista(o, "o")
         with t_all: render_lista(devices, "t")
+        
+        # --- NOVA LEGENDA ABAIXO DA LISTA ---
+        st.write("")
+        st.caption("💡 **Legenda de Estados:** 🟢 Funcional | 🟠 Com Defeito | 🔴 Avariado")
 
 # --- 2. TAB CONSULTAS ---
 
@@ -338,34 +335,30 @@ with tab_consultas:
 
         if not res: st.warning("Nenhum dispositivo encontrado.")
         for r_res in res:
-            with st.expander(f"{r_res.name} | Bastidor {getattr(r_res, 'rack', 1)}"):
-                st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {getattr(r_res, 'condition', 'Funcional')} | **Modelo:** {r_res.model}")
+            header_q = f"{r_res.name} | Bastidor {getattr(r_res, 'rack', 1)}"
+            # Adiciona ícones também nas consultas
+            c_saude = getattr(r_res, 'condition', 'Funcional')
+            if c_saude == "Avariado": header_q += " 🔴"
+            elif c_saude == "Com Defeito": header_q += " 🟠"
+            else: header_q += " 🟢"
+
+            with st.expander(header_q):
+                st.write(f"**Tipo:** {r_res.device_type} | **Saúde:** {c_saude} | **Modelo:** {r_res.model}")
                 st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
                 st.info(f"**OBS.:** {r_res.observations if r_res.observations else 'N/A'}")
 
-# --- 3. TAB TRÁFEGO (CORRIGIDA) ---
+# --- 3. TAB TRÁFEGO ---
 with tab_trafego:
-    # Filtra dispositivos do tipo Endpoint
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
-    
     if not eps: 
-        # Mostra mensagem em azul se não existirem Endpoints
         st.info("Adicione Endpoints na Gestão para monitorizar o tráfego.")
     else:
-        # Se existirem, mostra o formulário de atualização e o gráfico
-        target = st.selectbox("Escolher Endpoint", [e.name for e in eps], key="traffic_target_select")
+        target = st.selectbox("Endpoint", [e.name for e in eps], key="traffic_target_select")
         ep_obj = inv.get_endpoint(target)
-        up = st.number_input("Novo Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
-        down = st.number_input("Novo Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
-        
+        up = st.number_input("Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
+        down = st.number_input("Download (MB)", value=float(ep_obj.traffic_down_mb), key="input_traffic_down")
         if st.button("Atualizar Consumo"):
-            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down
-            st.success(f"Dados de {target} atualizados!")
-            st.rerun()
-            
-        st.divider()
-        st.subheader("Visualização de Consumo Total")
-        # Gera o gráfico de barras
+            ep_obj.traffic_up_mb, ep_obj.traffic_down_mb = up, down; st.rerun()
         st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
 
 # --- 4. TAB LIGAÇÕES ---
