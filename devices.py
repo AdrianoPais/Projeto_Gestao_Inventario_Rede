@@ -1,38 +1,25 @@
-# Importa datetime e timedelta para gerir datas e tempos de suspensão
 from datetime import datetime, timedelta
-
-# Importa funções de validação (IPs e MAC) e normalização de MAC
 from utils import is_valid_ipv4, is_valid_ipv6, is_valid_mac, normalize_mac
 
-# Constantes para o estado dos dispositivos
 ACTIVE = "ACTIVE"
 INACTIVE = "INACTIVE"
-
-# --------------------------------------------------
-# Classe base Device (equipamento genérico)
-# --------------------------------------------------
 
 class Device:
     def __init__(self, name: str, device_type: str, model: str = "", 
                  serial_interface: bool = False, observations: str = "", 
                  condition: str = "Funcional", defect_description: str = "",
-                 rack: int = 1): # NOVO: Localização física
-        # Remove espaços e valida o nome
+                 rack: int = 1):
         name = (name or "").strip()
         if not name:
             raise ValueError("name não pode ser vazio.")
 
-        # Atributos base
         self.name = name
         self.device_type = device_type
         self.model = (model or "").strip()
         self.serial_interface = serial_interface
-        self.rack = rack # Bastidor (1 a 6)
-        
-        # Novos campos de estado físico
-        self.condition = condition  # "Funcional", "Com Defeito" ou "Avariado"
+        self.rack = rack
+        self.condition = condition  
         self.defect_description = (defect_description or "").strip()
-        
         self.status = ACTIVE
         self.observations = (observations or "").strip()
 
@@ -50,20 +37,15 @@ class Device:
             "serial_interface": self.serial_interface,
             "condition": self.condition,
             "defect_description": self.defect_description,
-            "rack": self.rack, # Exportar localização
+            "rack": self.rack,
             "status": self.status,
             "observations": self.observations,
         }
 
     def __str__(self):
-        ser_text = "Sim" if self.serial_interface else "Não"
-        return f"[{self.device_type}] {self.name} (Mod: {self.model or '-'}) [Bastidor {self.rack}] cond={self.condition} status={self.status}"
+        return f"[{self.device_type}] {self.name} (Mod: {self.model or '-'}) [Bastidor {self.rack}]"
 
-
-# --------------------------------------------------
-# Classe Router (herda de Device)
-# --------------------------------------------------
-
+# --- Classe Router ---
 class Router(Device):
     def __init__(self, name: str, ipv4: str, ipv6: str, mac_address: str, 
                  model: str = "", serial_interface: bool = False, observations: str = "",
@@ -73,38 +55,26 @@ class Router(Device):
                          serial_interface=serial_interface, observations=observations,
                          condition=condition, defect_description=defect_description, rack=rack)
 
-        ipv4 = (ipv4 or "").strip()
-        if ipv4 and (not is_valid_ipv4(ipv4)):
-            raise ValueError("IPv4 inválido no Router.")
-        self.ipv4 = ipv4
-
-        ipv6 = (ipv6 or "").strip()
-        if ipv6 and (not is_valid_ipv6(ipv6)):
-            raise ValueError("IPv6 inválido no Router.")
-        self.ipv6 = ipv6
-
-        mac_address = normalize_mac(mac_address)
-        if not is_valid_mac(mac_address):
-            raise ValueError("MAC inválido no Router.")
-        self.mac_address = mac_address
-
+        self.ipv4 = (ipv4 or "").strip()
+        self.ipv6 = (ipv6 or "").strip()
+        self.mac_address = normalize_mac(mac_address)
         self.connected_devices = []
+
+    # MÉTODO ADICIONADO PARA CORREÇÃO DO ERRO
+    def connect_device(self, device_name):
+        if device_name not in self.connected_devices:
+            self.connected_devices.append(device_name)
+
+    def disconnect_device(self, device_name):
+        if device_name in self.connected_devices:
+            self.connected_devices.remove(device_name)
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update({
-            "ipv4": self.ipv4,
-            "ipv6": self.ipv6,
-            "mac_address": self.mac_address,
-            "connected_devices": list(self.connected_devices),
-        })
+        d.update({"ipv4": self.ipv4, "ipv6": self.ipv6, "mac_address": self.mac_address, "connected_devices": list(self.connected_devices)})
         return d
 
-
-# --------------------------------------------------
-# Classe Switch (herda de Device)
-# --------------------------------------------------
-
+# --- Classe Switch ---
 class Switch(Device):
     def __init__(self, name: str, ipv4: str, mac_address: str, ports: int, 
                  eth_ports: int = 0, fast_eth_ports: int = 0, giga_eth_ports: int = 0,
@@ -115,44 +85,29 @@ class Switch(Device):
                          serial_interface=serial_interface, observations=observations,
                          condition=condition, defect_description=defect_description, rack=rack)
 
-        ipv4 = (ipv4 or "").strip()
-        if ipv4 and (not is_valid_ipv4(ipv4)):
-            raise ValueError("IPv4 inválido no Switch.")
-        self.ipv4 = ipv4
-
-        mac_address = normalize_mac(mac_address)
-        if not is_valid_mac(mac_address):
-            raise ValueError("MAC inválido no Switch.")
-        self.mac_address = mac_address
-
-        if ports <= 0:
-            raise ValueError("O total de portas tem de ser > 0.")
+        self.ipv4 = (ipv4 or "").strip()
+        self.mac_address = normalize_mac(mac_address)
         self.ports = ports
-        
         self.eth_ports = eth_ports
         self.fast_eth_ports = fast_eth_ports
         self.giga_eth_ports = giga_eth_ports
-
         self.connected_devices = []
+
+    # MÉTODO ADICIONADO PARA CORREÇÃO DO ERRO
+    def connect_device(self, device_name):
+        if device_name not in self.connected_devices:
+            self.connected_devices.append(device_name)
+
+    def disconnect_device(self, device_name):
+        if device_name in self.connected_devices:
+            self.connected_devices.remove(device_name)
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update({
-            "ipv4": self.ipv4,
-            "mac_address": self.mac_address,
-            "ports": self.ports,
-            "eth_ports": self.eth_ports,
-            "fast_eth_ports": self.fast_eth_ports,
-            "giga_eth_ports": self.giga_eth_ports,
-            "connected_devices": list(self.connected_devices),
-        })
+        d.update({"ipv4": self.ipv4, "mac_address": self.mac_address, "ports": self.ports, "connected_devices": list(self.connected_devices)})
         return d
 
-
-# --------------------------------------------------
-# Classe AccessPoint (herda de Device)
-# --------------------------------------------------
-
+# --- Classe AccessPoint ---
 class AccessPoint(Device):
     def __init__(self, name: str, ssid: str, model: str = "", serial_interface: bool = False, 
                  observations: str = "", condition: str = "Funcional", 
@@ -162,25 +117,24 @@ class AccessPoint(Device):
                          serial_interface=serial_interface, observations=observations,
                          condition=condition, defect_description=defect_description, rack=rack)
 
-        ssid = (ssid or "").strip()
-        if not ssid:
-            raise ValueError("ssid não pode ser vazio.")
-        self.ssid = ssid
+        self.ssid = (ssid or "").strip()
         self.connected_endpoints = []
+
+    # MÉTODO ADICIONADO PARA CORREÇÃO DO ERRO
+    def connect_endpoint(self, ep_name):
+        if ep_name not in self.connected_endpoints:
+            self.connected_endpoints.append(ep_name)
+
+    def disconnect_endpoint(self, ep_name):
+        if ep_name in self.connected_endpoints:
+            self.connected_endpoints.remove(ep_name)
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update({
-            "ssid": self.ssid,
-            "connected_endpoints": list(self.connected_endpoints),
-        })
+        d.update({"ssid": self.ssid, "connected_endpoints": list(self.connected_endpoints)})
         return d
 
-
-# --------------------------------------------------
-# Classe Endpoint (herda de Device)
-# --------------------------------------------------
-
+# --- Classe Endpoint ---
 class Endpoint(Device):
     def __init__(self, name: str, user_id: str, ipv4: str, ipv6: str, mac_address: str, 
                  model: str = "", serial_interface: bool = False, observations: str = "",
@@ -190,33 +144,13 @@ class Endpoint(Device):
                          serial_interface=serial_interface, observations=observations,
                          condition=condition, defect_description=defect_description, rack=rack)
 
-        user_id = (user_id or "").strip()
-        if not user_id:
-            raise ValueError("user_id não pode ser vazio.")
-        self.user_id = user_id
-
-        ipv4 = (ipv4 or "").strip()
-        if ipv4 and (not is_valid_ipv4(ipv4)):
-            raise ValueError("IPv4 inválido no Endpoint.")
-        self.ipv4 = ipv4
-
-        mac_address = normalize_mac(mac_address)
-        if not is_valid_mac(mac_address):
-            raise ValueError("MAC inválido no Endpoint.")
-        self.mac_address = mac_address
-
+        self.user_id = (user_id or "").strip()
+        self.ipv4 = (ipv4 or "").strip()
+        self.mac_address = normalize_mac(mac_address)
         self.traffic_up_mb = 0.0
         self.traffic_down_mb = 0.0
-        self.suspended_until = None
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update({
-            "user_id": self.user_id,
-            "ipv4": self.ipv4,
-            "mac_address": self.mac_address,
-            "traffic_up_mb": self.traffic_up_mb,
-            "traffic_down_mb": self.traffic_down_mb,
-            "suspended_until": self.suspended_until.isoformat() if self.suspended_until else None,
-        })
+        d.update({"user_id": self.user_id, "ipv4": self.ipv4, "mac_address": self.mac_address, "traffic_up_mb": self.traffic_up_mb, "traffic_down_mb": self.traffic_down_mb})
         return d
