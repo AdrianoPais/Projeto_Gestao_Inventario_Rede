@@ -1,27 +1,35 @@
 import json
+import os
 from datetime import datetime
 from inventory import NetworkInventory
 from devices import Router, Switch, AccessPoint, Endpoint
 
+def log_event(mensagem: str):
+    """
+    Regista uma ação no ficheiro local logs.txt com timestamp.
+    Essencial para o Sistema de Honra.
+    """
+    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    with open("logs.txt", "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {mensagem}\n")
+
 def save_to_json(inv: NetworkInventory, filename: str):
     """
-    Serializa todos os dispositivos para uma lista de dicionários
-    e guarda-os num ficheiro JSON formatado.
+    Guarda todos os dispositivos. O método to_dict() já inclui
+    os novos campos (rack, condition, etc).
     """
-    data = []
-    for d in inv.list_devices():
-        # O método to_dict() em devices.py já inclui serial_interface,
-        # condition e defect_description.
-        data.append(d.to_dict())
-
+    data = [d.to_dict() for d in inv.list_devices()]
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def load_from_json(filename: str) -> NetworkInventory:
     """
-    Lê o ficheiro JSON e reconstrói os objetos de rede, restaurando
-    modelos, estados de conservação, interfaces e observações.
+    Reconstrói o inventário garantindo que a localização (Bastidor)
+    e o estado de saúde são restaurados corretamente.
     """
+    if not os.path.exists(filename):
+        return NetworkInventory()
+
     with open(filename, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -30,18 +38,14 @@ def load_from_json(filename: str) -> NetworkInventory:
     for item in data:
         t = item.get("type")
         
-        # Extrai campos comuns a todos os equipamentos
+        # Campos comuns com proteções para dados antigos
         obs = item.get("observations", "")
         mod = item.get("model", "")
         ser_int = item.get("serial_interface", False)
-        
-        # Novos campos de estado físico (com valores por defeito para retrocompatibilidade)
         cond = item.get("condition", "Funcional")
         def_desc = item.get("defect_description", "")
+        rk = item.get("rack", 1) # Assume Bastidor 1 se não existir no JSON
 
-        # -------------------------
-        # Caso seja um ROUTER
-        # -------------------------
         if t == "ROUTER":
             obj = Router(
                 name=item["name"],
@@ -52,14 +56,11 @@ def load_from_json(filename: str) -> NetworkInventory:
                 serial_interface=ser_int,
                 observations=obs,
                 condition=cond,
-                defect_description=def_desc
+                defect_description=def_desc,
+                rack=rk # NOVO
             )
-            obj.status = item.get("status", obj.status)
             obj.connected_devices = list(item.get("connected_devices", []))
 
-        # -------------------------
-        # Caso seja um SWITCH
-        # -------------------------
         elif t == "SWITCH":
             obj = Switch(
                 name=item["name"],
@@ -73,14 +74,11 @@ def load_from_json(filename: str) -> NetworkInventory:
                 serial_interface=ser_int,
                 observations=obs,
                 condition=cond,
-                defect_description=def_desc
+                defect_description=def_desc,
+                rack=rk # NOVO
             )
-            obj.status = item.get("status", obj.status)
             obj.connected_devices = list(item.get("connected_devices", []))
 
-        # -------------------------
-        # Caso seja um ACCESS POINT
-        # -------------------------
         elif t == "AP":
             obj = AccessPoint(
                 name=item["name"],
@@ -89,14 +87,11 @@ def load_from_json(filename: str) -> NetworkInventory:
                 serial_interface=ser_int,
                 observations=obs,
                 condition=cond,
-                defect_description=def_desc
+                defect_description=def_desc,
+                rack=rk # NOVO
             )
-            obj.status = item.get("status", obj.status)
             obj.connected_endpoints = list(item.get("connected_endpoints", []))
 
-        # -------------------------
-        # Caso seja um ENDPOINT
-        # -------------------------
         elif t == "ENDPOINT":
             obj = Endpoint(
                 name=item["name"],
@@ -108,25 +103,18 @@ def load_from_json(filename: str) -> NetworkInventory:
                 serial_interface=ser_int,
                 observations=obs,
                 condition=cond,
-                defect_description=def_desc
+                defect_description=def_desc,
+                rack=rk # NOVO
             )
-            obj.status = item.get("status", obj.status)
             obj.traffic_up_mb = float(item.get("traffic_up_mb", 0.0))
             obj.traffic_down_mb = float(item.get("traffic_down_mb", 0.0))
-
+            
             susp = item.get("suspended_until")
-            if susp:
-                try:
-                    obj.suspended_until = datetime.fromisoformat(susp)
-                except ValueError:
-                    obj.suspended_until = None
-            else:
-                obj.suspended_until = None
-
+            obj.suspended_until = datetime.fromisoformat(susp) if susp else None
         else:
             continue
 
-        # Adiciona o objeto reconstruído ao inventário
+        obj.status = item.get("status", obj.status)
         inv.add_device(obj)
 
     return inv
