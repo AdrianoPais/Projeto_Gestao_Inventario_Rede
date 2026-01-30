@@ -1,27 +1,51 @@
-import streamlit as st
-import json
-import os
-import pandas as pd 
-from io import BytesIO 
-from datetime import datetime
-from fpdf import FPDF 
-from inventory import NetworkInventory
-from devices import Router, Switch, AccessPoint, Endpoint
-from storage import save_to_json, load_from_json
+# Nome 1: Daniel Santos
+# Nome 2: Sérgio Correia
+# Nome 3: Tiago Costa
+# Turma: GRSC0925
+# Trabalho: Projeto Final UC00608 - Programação Alocada a Objetos (Em Python)
+
+# ==================================================
+# IMPORTAÇÕES DE BIBLIOTECAS
+# ==================================================
+# Importa todas as bibliotecas necessárias para o funcionamento da aplicação
+
+import streamlit as st  # Framework para criar interfaces web interativas
+import json  # Biblioteca para trabalhar com dados em formato JSON
+import os  # Biblioteca para operações do sistema operativo (verificar ficheiros, etc.)
+import pandas as pd  # Biblioteca para manipulação de dados em tabelas (DataFrames)
+from io import BytesIO  # Permite trabalhar com dados binários em memória (útil para Excel)
+from datetime import datetime  # Biblioteca para trabalhar com datas e horas
+from fpdf import FPDF  # Biblioteca para gerar documentos PDF
+from inventory import NetworkInventory  # Importa a classe que gere todo o inventário
+from devices import Router, Switch, AccessPoint, Endpoint  # Importa as classes dos diferentes tipos de dispositivos
+from storage import save_to_json, load_from_json  # Importa funções para guardar/carregar dados em JSON
 
 # ==================================================
 # CONFIGURAÇÃO DA PÁGINA E ESTADO
 # ==================================================
+
+# Configura a página web com título e layout largo
+
 st.set_page_config(page_title="Network Manager Pro", layout="wide")
 
+# Verifica se já existe um inventário na sessão (memória temporária do Streamlit)
+# Se não existir, tenta carregar do ficheiro ou cria um novo inventário vazio
+
 if 'inv' not in st.session_state:
+    # Tenta carregar o inventário do ficheiro JSON existente
     if os.path.exists("inventario.json"):
+        # Ao falhar, cria um inventário vazio
         try: st.session_state.inv = load_from_json("inventario.json")
         except: st.session_state.inv = NetworkInventory()
     else:
+        # Cria um inventário vazio
         st.session_state.inv = NetworkInventory()
 
+# Acesso rápido ao inventário na sessão
+
 inv = st.session_state.inv
+
+# Variável de estado para controlar se estamos a editar um dispositivo
 
 if 'editing_device' not in st.session_state:
     st.session_state.editing_device = None
@@ -30,11 +54,20 @@ if 'editing_device' not in st.session_state:
 # FUNÇÕES AUXILIARES (LOGS E PDF)
 # ==================================================
 
+# Função para registar eventos no ficheiro de logs
+
 def log_event(mensagem):
-    """Regista ações no ficheiro local logs.txt."""
+    """
+    Regista eventos/ações no ficheiro de logs.
+    
+    Esta função guarda um histórico de todas as ações realizadas na aplicação
+    (criação, edição, eliminação de dispositivos) com data e hora.
+    """
     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     with open("logs.txt", "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {mensagem}\n")
+
+# Função para gerar um relatório PDF do inventário
 
 def gerar_pdf(lista_dispositivos):
     pdf = FPDF()
@@ -57,6 +90,8 @@ def gerar_pdf(lista_dispositivos):
 # FUNÇÕES DE FORMULÁRIO
 # ==================================================
 
+# Função para limpar o formulário de adição/edição de dispositivos
+
 def limpar_form():
     keys = [
         "add_tipo_select", "add_nome_input", "add_modelo_input", 
@@ -68,6 +103,8 @@ def limpar_form():
     for k in keys:
         if k in st.session_state: del st.session_state[k]
 
+# Função para carregar os dados de um dispositivo existente no formulário para edição
+
 def carregar_dados_para_form(device):
     st.session_state['add_tipo_select'] = device.device_type
     st.session_state['add_nome_input'] = device.name
@@ -78,6 +115,7 @@ def carregar_dados_para_form(device):
     st.session_state['add_defeito_input'] = getattr(device, 'defect_description', '')
     st.session_state['add_rack_select'] = getattr(device, 'rack', 1)
 
+    # Carrega campos específicos conforme o tipo de dispositivo
     if device.device_type == "ROUTER":
         st.session_state['add_ip_router'] = getattr(device, 'ipv4', '')
         st.session_state['add_mac_router'] = getattr(device, 'mac_address', '')
@@ -93,9 +131,13 @@ def carregar_dados_para_form(device):
         st.session_state['add_ip_ep'] = getattr(device, 'ipv4', '')
         st.session_state['add_mac_ep'] = getattr(device, 'mac_address', '')
 
+# Função chamada ao clicar em "Editar" para carregar os dados no formulário
+
 def click_editar(device):
     st.session_state.editing_device = device
     carregar_dados_para_form(device)
+
+# Função chamada ao clicar em "Cancelar" para limpar o formulário
 
 def click_cancelar():
     st.session_state.editing_device = None
@@ -105,14 +147,18 @@ def click_cancelar():
 # SIDEBAR: GESTÃO E EXPORTAÇÕES (UMA POR LINHA)
 # ==================================================
 
+# Configuração da barra lateral com opções de gestão e exportação de dados
+
 with st.sidebar:
     st.title("Gestão de Dados")
     
+    # Botões para guardar e recarregar o inventário no servidor
     if st.button("Guardar no Servidor", use_container_width=True, key="btn_save_srv"):
         save_to_json(inv, "inventario.json")
         log_event("Guardado manual no servidor.")
         st.success("Dados guardados.")
     
+    # Botão para recarregar o inventário do ficheiro no servidor
     if st.button("Recarregar do Ficheiro", use_container_width=True, key="btn_reload_srv"):
         st.session_state.inv = load_from_json("inventario.json")
         st.session_state.editing_device = None
@@ -123,11 +169,14 @@ with st.sidebar:
     st.subheader("Exportar Inventário")
     lista_dicts = [d.to_dict() for d in inv.list_devices()]
     
+    # Verifica se o inventário está vazio antes de permitir downloads
+
     if not lista_dicts:
         st.warning("Inventário vazio.")
     else:
         df = pd.DataFrame(lista_dicts)
 
+        # Botões de download para vários formatos - JSON, CSV, Excel, PDF, TXT
         st.download_button(
             label="📄 Download JSON", 
             data=json.dumps(lista_dicts, indent=2, ensure_ascii=False), 
@@ -156,7 +205,7 @@ with st.sidebar:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="btn_excel"
         )
-
+        # Geração do PDF com tratamento de erros
         try:
             pdf_data = gerar_pdf(inv.list_devices())
             st.download_button(
@@ -166,9 +215,11 @@ with st.sidebar:
                 mime="application/pdf",
                 key="btn_pdf"
             )
+        # Caso ocorra um erro na geração do PDF, exibe uma mensagem de erro
         except:
             st.sidebar.error("Erro ao gerar PDF")
 
+        # Geração do TXT simples
         txt_lines = [f"RELATÓRIO DE INVENTÁRIO - {datetime.now().strftime('%d/%m/%Y %H:%M')}\n", "="*50 + "\n"]
         for d in inv.list_devices():
             rk = getattr(d, 'rack', 1)
@@ -187,11 +238,15 @@ with st.sidebar:
             key="btn_txt"
         )
 
+    # Seção para upload e restauração de backup JSON
     st.divider()
     st.subheader("Upload Local")
     uploaded_file = st.file_uploader("Carregar backup JSON", type=["json"], key="uploader_json")
     
+    # Processa o ficheiro carregado para restaurar o inventário
+
     if uploaded_file is not None:
+        # Botão para restaurar o backup a partir do ficheiro carregado
         if st.button("Restaurar Backup", use_container_width=True, key="btn_restore_upload"):
             try:
                 data = json.load(uploaded_file)
@@ -212,10 +267,15 @@ with st.sidebar:
                 st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
 
+    # Seção para visualizar logs do servidor
     st.divider()
     if st.checkbox("Ver Logs do Servidor"):
         if os.path.exists("logs.txt"):
             with open("logs.txt", "r") as f: st.text_area("Histórico", f.read(), height=200)
+
+# ==================================================
+# TÍTULO E AVISO IMPORTANTE
+# ==================================================
 
 st.title("Sistema de Gestão de Rede")
 
@@ -229,7 +289,12 @@ Contamos com a colaboração de todos para manter o inventário correto!
 # ==================================================
 # TABS PRINCIPAIS
 # ==================================================
+
+# --- 1. TAB GESTÃO ---
+
 tab_gestao, tab_consultas, tab_trafego, tab_ligacoes = st.tabs(["Gestão", "Consultas", "Tráfego", "Ligações"])
+
+# Área principal de gestão de dispositivos
 
 with tab_gestao:
     col_add, col_list = st.columns([1, 2])
@@ -237,6 +302,7 @@ with tab_gestao:
     dev_edit = st.session_state.editing_device
     acao_btn = "Atualizar" if is_editing else "Adicionar"
 
+    # Formulário de Adição/Edição de Dispositivos
     with col_add:
         st.subheader("Dispositivo")
         tipo = st.selectbox("Tipo", ["ROUTER", "SWITCH", "AP", "ENDPOINT"], disabled=is_editing, key="add_tipo_select")
@@ -248,6 +314,7 @@ with tab_gestao:
         defeito_desc = st.text_input("Descreva o Defeito", key="add_defeito_input") if saude == "Com Defeito" else ""
         obs = st.text_area("Observações Gerais", key="add_obs_input")
 
+        # Função para processar a adição ou atualização do dispositivo
         def process_update(new_obj):
             if is_editing:
                 inv.remove_device(dev_edit.name)
@@ -257,6 +324,7 @@ with tab_gestao:
             st.session_state.editing_device = None
             limpar_form(); st.rerun()
 
+        # Campos específicos conforme o tipo de dispositivo
         common = {"model": modelo, "serial_interface": (ser_sel == "Sim"), "observations": obs, "condition": saude, "defect_description": defeito_desc, "rack": rack}
         if tipo == "ROUTER":
             ipv4, mac = st.text_input("IPv4", key="add_ip_router"), st.text_input("MAC", key="add_mac_router")
@@ -274,22 +342,25 @@ with tab_gestao:
             if st.button(f"{acao_btn} Endpoint"): process_update(Endpoint(nome, u, ip, "", m, **common))
         if is_editing: st.button("Cancelar", on_click=click_cancelar)
 
+    # Lista de Dispositivos no Inventário
     with col_list:
         st.subheader("Lista do Inventário")
         devices = inv.list_devices()
         r, s, o = [d for d in devices if d.device_type=="ROUTER"], [d for d in devices if d.device_type=="SWITCH"], [d for d in devices if d.device_type not in ["ROUTER", "SWITCH"]]
         t_r, t_s, t_o, t_all = st.tabs([f"Routers ({len(r)})", f"Switches ({len(s)})", f"Outros ({len(o)})", f"Todos ({len(devices)})"])
 
+        # Função para renderizar a lista de dispositivos com ícones coloridos
         def render_lista(lista, prefix):
             if not lista: st.info("Vazio.")
             for d in lista:
                 cond, rk = getattr(d, 'condition', 'Funcional'), getattr(d, 'rack', 1)
                 header = f"{d.name} | Bastidor {rk}"
                 # Lógica de Ícones coloridos
-                if cond == "Avariado": header += " 🔴"
-                elif cond == "Com Defeito": header += " 🟠"
+                if cond == "Avariado": header += " 🔴" # Ícone Vermelho para Avaraiado
+                elif cond == "Com Defeito": header += " 🟠" # Ícone Laranja para Com Defeito
                 else: header += " 🟢" # Ícone Verde para Funcional
-                
+
+                # Expander com detalhes do dispositivo
                 with st.expander(header):
                     st.write(f"**Estado:** {cond} | **Bastidor:** {rk} | **Modelo:** {d.model}")
                     st.write(f"**Serial:** {'Sim' if getattr(d, 'serial_interface', False) else 'Não'} | **MAC:** {getattr(d, 'mac_address', 'N/A')} | **IP:** {getattr(d, 'ipv4', 'N/A')}")
@@ -299,30 +370,37 @@ with tab_gestao:
                     if c2.button("Eliminar", key=f"{prefix}_el_{d.name}"):
                         log_event(f"ELIMINADO: {d.name} do Bastidor {rk}"); inv.remove_device(d.name); st.rerun()
 
+        # Renderiza as listas em cada tab
         with t_r: render_lista(r, "r")
         with t_s: render_lista(s, "s")
         with t_o: render_lista(o, "o")
         with t_all: render_lista(devices, "t")
         
-        # --- NOVA LEGENDA ABAIXO DA LISTA ---
+        # Legenda de Ícones
         st.write("")
         st.caption("💡 **Legenda de Estados:** 🟢 Funcional | 🟠 Com Defeito | 🔴 Avariado")
 
 # --- 2. TAB CONSULTAS ---
 
+# Área de consultas avançadas com múltiplos filtros
+
 with tab_consultas:
+
+    # Filtros de pesquisa
     st.subheader("Pesquisa Avançada")
     r1_c1, r1_c2, r1_c3 = st.columns(3)
     with r1_c1: search_n = st.text_input("Filtrar por Nome", key="q_n")
     with r1_c2: search_t = st.selectbox("Filtrar por Tipo", ["Todos", "ROUTER", "SWITCH", "AP", "ENDPOINT"], key="q_t")
     with r1_c3: search_rk = st.selectbox("Filtrar por Bastidor", ["Todos", 1, 2, 3, 4, 5, 6], key="q_rk")
 
+    # Segunda linha de filtros
     r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
     with r2_c1: search_cond = st.selectbox("Filtrar por Estado", ["Todos", "Funcional", "Com Defeito", "Avariado"], key="q_cd")
     with r2_c2: search_ser = st.selectbox("Interface Serial?", ["Todos", "Sim", "Não"], key="q_ser")
     with r2_c3: search_mac = st.text_input("Filtrar por MAC", key="q_mac")
     with r2_c4: search_ip = st.text_input("Filtrar por IP", key="q_ip")
 
+    # Botão para executar a pesquisa com os filtros aplicados
     if st.button("Executar Pesquisa", use_container_width=True):
         res = inv.list_devices()
         if search_n: res = [d for d in res if search_n.lower() in d.name.lower()]
@@ -338,21 +416,31 @@ with tab_consultas:
             header_q = f"{r_res.name} | Bastidor {getattr(r_res, 'rack', 1)}"
             # Adiciona ícones também nas consultas
             c_saude = getattr(r_res, 'condition', 'Funcional')
-            if c_saude == "Avariado": header_q += " 🔴"
-            elif c_saude == "Com Defeito": header_q += " 🟠"
-            else: header_q += " 🟢"
+            if c_saude == "Avariado": header_q += " 🔴" # Ícone Vermelho para Avariado
+            elif c_saude == "Com Defeito": header_q += " 🟠" # Ícone Laranja para Com Defeito
+            else: header_q += " 🟢" # Ícone Verde para Funcional
 
+            # Expander com detalhes do dispositivo
             with st.expander(header_q):
                 st.write(f"**Tipo:** {r_res.device_type} | **Estado:** {c_saude} | **Modelo:** {r_res.model}")
                 st.write(f"**MAC:** {getattr(r_res, 'mac_address', 'N/A')} | **IP:** {getattr(r_res, 'ipv4', 'N/A')}")
                 st.info(f"**OBS.:** {r_res.observations if r_res.observations else 'N/A'}")
 
 # --- 3. TAB TRÁFEGO ---
+
+# Área de monitorização e atualização de tráfego dos Endpoints
+
 with tab_trafego:
+    # Lista de Endpoints para monitorização
     eps = [d for d in inv.list_devices() if isinstance(d, Endpoint)]
+
+    # Se não houver Endpoints, exibe uma mensagem informativa
     if not eps: 
         st.info("Adicione Endpoints na Gestão para monitorizar o tráfego.")
+
+    # Caso contrário, permite selecionar um Endpoint e atualizar o tráfego
     else:
+        # Seleção do Endpoint
         target = st.selectbox("Endpoint", [e.name for e in eps], key="traffic_target_select")
         ep_obj = inv.get_endpoint(target)
         up = st.number_input("Upload (MB)", value=float(ep_obj.traffic_up_mb), key="input_traffic_up")
@@ -362,14 +450,23 @@ with tab_trafego:
         st.bar_chart({e.name: e.traffic_up_mb + e.traffic_down_mb for e in eps})
 
 # --- 4. TAB LIGAÇÕES ---
+
+# Área para gerir ligações entre dispositivos (Routers, Switches, Endpoints)
+
 with tab_ligacoes:
+
+    # Lista de dispositivos que podem estabelecer ligações
     hosts = [d for d in inv.list_devices() if hasattr(d, "connected_devices") or hasattr(d, "connected_endpoints")]
     if not hosts:
         st.info("Crie Routers ou Switches para estabelecer ligações.")
     else:
+
+        # Seleção do dispositivo base para gerir ligações
         h_name = st.selectbox("Equipamento Base", [h.name for h in hosts], key="host_link_select")
         h_obj = inv.devices.get(h_name)
         c1, c2 = st.columns(2)
+
+        # Área para adicionar novas ligações
         with c1:
             target = st.selectbox("Ligar a:", [d.name for d in inv.list_devices() if d.name != h_name], key="target_link_select")
             if st.button("Ligar"):
@@ -378,6 +475,8 @@ with tab_ligacoes:
                     else: h_obj.connect_endpoint(target)
                     st.rerun()
                 except Exception as e: st.error(e)
+
+        # Área para listar e desligar ligações existentes
         with c2:
             cons = getattr(h_obj, "connected_devices", []) or getattr(h_obj, "connected_endpoints", [])
             for c in cons:
