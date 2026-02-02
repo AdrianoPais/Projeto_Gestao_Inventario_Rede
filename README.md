@@ -5,9 +5,9 @@
 Este projeto é uma aplicação robusta desenvolvida em Python para a gestão centralizada de ativos de rede. Permite o registo, monitorização de tráfego e gestão de conectividade de diversos tipos de dispositivos através de uma interface moderna construída com Streamlit.
 ## Funcionalidades Principais
 
-- Gestão de Dispositivos (CRUD): Adição, listagem e remoção de Routers, Switches, Access Points e Endpoints.
+- Gestão de Dispositivos (CRUD): Adição, listagem, remoção e edição de Routers, Switches, Access Points e Endpoints.
 
-- Controlo de Integridade: Validação rigorosa de endereços IPv4, IPv6 e endereços MAC, garantindo que não existem duplicados no inventário.
+- Controlo de Integridade: Validação rigorosa de endereços IPv4 e endereços MAC, garantindo que não existem duplicados no inventário.
 
 - Monitorização de Tráfego: Atualização e acompanhamento do consumo de dados (Upload/Download) para cada utilizador.
 
@@ -15,7 +15,9 @@ Este projeto é uma aplicação robusta desenvolvida em Python para a gestão ce
 
 - Gestão de Ligações: Mapeamento de ligações físicas entre dispositivos e infraestrutura (Routers/Switches).
 
-- Persistência de Dados: Gravação e leitura de todo o inventário em formato JSON para garantir a continuidade dos dados entre sessões.
+- Persistência de Dados: Gravação e leitura de todo o inventário em formato JSON, PDF, Excel, TXT ou CSV para garantir a continuidade dos dados entre sessões.
+
+- Proteção com Backups: Upload e Download de JSONs desejados para recuperação dos dados, em caso de perda.
 
 ## Arquitetura do Projeto
 
