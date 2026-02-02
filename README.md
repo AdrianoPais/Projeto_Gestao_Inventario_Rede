@@ -2,7 +2,10 @@
 
 ## Link para o site: https://projetogestaoinventariorede.streamlit.app/
 
-Este projeto é uma aplicação robusta desenvolvida em Python para a gestão centralizada de ativos de rede. Permite o registo, monitorização de tráfego e gestão de conectividade de diversos tipos de dispositivos através de uma interface moderna construída com Streamlit.
+Este projeto é uma aplicação web robusta desenvolvida em Python e Streamlit, desenhada para simplificar a gestão e o controlo de inventário de equipamentos de rede (Routers, Switches, Access Points e Endpoints).
+
+A ferramenta permite não só o registo técnico, mas também o acompanhamento da localização física (Bastidores) e do estado de conservação de cada dispositivo.
+
 ## Funcionalidades Principais
 
 - Gestão de Dispositivos (CRUD): Adição, listagem, remoção e edição de Routers, Switches, Access Points e Endpoints.
