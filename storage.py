@@ -1,46 +1,77 @@
+# Nome 1: Daniel Santos
+# Nome 2: Sérgio Correia
+# Nome 3: Tiago Costa
+# Turma: GRSC0925
+# Trabalho: Projeto Final UC00608 - Programação Alocada a Objetos (Em Python)
+
 import json
 import os
 from datetime import datetime
 from inventory import NetworkInventory
 from devices import Router, Switch, AccessPoint, Endpoint
 
-# --- REMOVIDA A LINHA QUE CAUSAVA O ERRO DE IMPORTAÇÃO CIRCULAR ---
+# ==================================================
+# REGISTO DE EVENTOS (LOG)
+# ==================================================
+
+# Regista uma ação no ficheiro local logs.txt com timestamp
 
 def log_event(mensagem: str):
-    """Regista uma ação no ficheiro local logs.txt com timestamp."""
     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     with open("logs.txt", "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {mensagem}\n")
 
+# ==================================================
+# GUARDA DE INVENTÁRIO EM JSON
+# ==================================================
+
+# Guarda todos os dispositivos do inventário num ficheiro JSON
+
 def save_to_json(inv: NetworkInventory, filename: str):
-    """Guarda todos os dispositivos no ficheiro JSON."""
     data = [d.to_dict() for d in inv.list_devices()]
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
+# ==================================================
+# LEITURA DE INVENTÁRIO A PARTIR DE JSON
+# ==================================================
+
+# Reconstrói o inventário de rede a partir de um ficheiro JSON
+
 def load_from_json(filename: str) -> NetworkInventory:
-    """Reconstrói o inventário a partir do ficheiro JSON."""
+
+    # Caso o ficheiro não exista, devolve um inventário vazio
     if not os.path.exists(filename):
         return NetworkInventory()
 
+    # Leitura do ficheiro JSON
     with open(filename, "r", encoding="utf-8") as f:
         try:
             data = json.load(f)
         except json.JSONDecodeError:
             return NetworkInventory()
 
+    # Criação do inventário
     inv = NetworkInventory()
 
+    # Percorre todos os dispositivos guardados
     for item in data:
         t = item.get("type")
-        
-        # Campos comuns com proteções para dados antigos
+
+        # --------------------------------------------------
+        # Campos comuns (com proteção para dados antigos)
+        # --------------------------------------------------
+
         obs = item.get("observations", "")
         mod = item.get("model", "")
         ser_int = item.get("serial_interface", False)
         cond = item.get("condition", "Funcional")
         def_desc = item.get("defect_description", "")
-        rk = item.get("rack", 1) 
+        rk = item.get("rack", 1)
+
+        # --------------------------------------------------
+        # Reconstrução do objeto conforme o tipo
+        # --------------------------------------------------
 
         if t == "ROUTER":
             obj = Router(
@@ -102,13 +133,21 @@ def load_from_json(filename: str) -> NetworkInventory:
                 defect_description=def_desc,
                 rack=rk
             )
+
+            # Contadores de tráfego
             obj.traffic_up_mb = float(item.get("traffic_up_mb", 0.0))
             obj.traffic_down_mb = float(item.get("traffic_down_mb", 0.0))
-            
+
+            # Estado de suspensão (caso exista)
             susp = item.get("suspended_until")
             obj.suspended_until = datetime.fromisoformat(susp) if susp else None
+
         else:
             continue
+
+        # --------------------------------------------------
+        # Estado do dispositivo e inserção no inventário
+        # --------------------------------------------------
 
         obj.status = item.get("status", obj.status)
         inv.add_device(obj)
