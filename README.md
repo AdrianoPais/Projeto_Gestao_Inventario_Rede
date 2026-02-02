@@ -44,15 +44,27 @@ O sistema foi desenhado seguindo os princípios da Programação Orientada a Obj
   Instalar as dependências:
   Bash
 
-    pip install streamlit
+    pip install -r requirements.txt
 
   Correr a aplicação:
   Bash
 
     streamlit run app_web.py
 
+## Sistema de Honra
+
+Como a aplicação (na versão atual) não possui um sistema de Controlo de Acesso de Utilizador (UAC) com login individual, ela opera sob um Sistema de Honra.
+
+Solicita-se a todos os utilizadores que não alterem ou eliminem dados sem autorização prévia dos Administradores.
+
+Todas as ações são auditadas e visíveis na barra lateral em "Ver Logs do Servidor".
+
 ## Deploy
 
 A aplicação está configurada para deploy imediato no Streamlit Community Cloud, utilizando o ficheiro requirements.txt para a gestão automática de dependências.
+
+## Contribuições
+
+Este projeto foi desenvolvido como parte de um sistema de formação em redes e gestão de infraestruturas. Sugestões e melhorias são bem-vindas via Pull Requests ou Issues.
 
 ### Autores: Daniel Santos, Sérgio Correia e Tiago Costa. Curso: GRSC0925 - UC00608 Programação Alocada a Objetos.
